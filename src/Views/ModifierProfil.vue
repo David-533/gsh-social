@@ -31,6 +31,13 @@
 </template>
 
 <script>
+/**
+ * Composant ModifierProfil - Permet de modifier les données du profil utilisateur
+ * - Pseudo
+ * - Bio
+ * - Genre
+ * - Photo de profil
+ */
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
@@ -46,6 +53,9 @@ export default {
     const fileInput = ref(null);
     const defaultPhoto = "https://via.placeholder.com/150";
 
+    /**
+     * Charge les données du profil depuis localStorage au montage du composant
+     */
     onMounted(() => {
       userPseudo.value = localStorage.getItem("userPseudo") || "";
       userPhoto.value = localStorage.getItem("userPhoto") || defaultPhoto;
@@ -53,9 +63,17 @@ export default {
       gender.value = localStorage.getItem("userGender") || "";
     });
 
+    /**
+     * Déclenche l'input file caché pour le changement de photo de profil
+     */
     const triggerFileInput = () => fileInput.value.click();
 
-    // ✅ Nouvelle version : accepte les grandes images + redimensionne automatiquement
+    /**
+     * Gère le changement de photo de profil
+     * Rédimensionne l'image proportionnellement si elle dépasse 1024px
+     * Comprime en JPEG 80% de qualité
+     * @param {Event} e - L'événement du changement de fichier
+     */
     const handleFileChange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -66,12 +84,12 @@ export default {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement("canvas");
-          const maxSize = 1024; // ✅ Taille max en pixels (change si tu veux)
+          const maxSize = 1024; // Taille maximale en pixels
 
           let width = img.width;
           let height = img.height;
 
-          // ✅ Redimensionnement proportionnel
+          // Redimensionne proportionnellement si l'image dépasse la taille max
           if (width > height) {
             if (width > maxSize) {
               height *= maxSize / width;
@@ -90,7 +108,7 @@ export default {
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
 
-          // ✅ Convertit en Base64 compressé (JPEG 80%)
+          // Convertit en Base64 compressé (JPEG 80% de qualité)
           userPhoto.value = canvas.toDataURL("image/jpeg", 0.8);
         };
 
@@ -100,6 +118,10 @@ export default {
       reader.readAsDataURL(file);
     };
 
+    /**
+     * Sauvegarde les modifications du profil dans localStorage
+     * Redirige ensuite vers la page de profil
+     */
     const saveProfile = () => {
       localStorage.setItem("userPseudo", userPseudo.value);
       localStorage.setItem("userPhoto", userPhoto.value || defaultPhoto);
@@ -108,6 +130,9 @@ export default {
       router.push("/profil");
     };
 
+    /**
+     * Redirige vers la page de profil sans sauvegarder les modifications
+     */
     const goBack = () => {
       router.push("/profil");
     };

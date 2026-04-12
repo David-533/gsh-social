@@ -72,6 +72,10 @@
 </template>
 
 <script>
+/**
+ * Composant Messages - Page de chat avec le bot Groq
+ * Permet d’envoyer des messages et de recevoir des réponses de l’IA
+ */
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 
@@ -82,7 +86,7 @@ export default {
     const userPseudo = ref("");
     const userPhoto = ref("/default_pp.png");
 
-    // ✅ Bot renommé ici
+    // Objet bot avec le nom et la photo de profil du bot
     const bot = {
       name: "Fey",
       photo: "https://docs.nestjs.com/assets/logo-small-gradient.svg"
@@ -92,7 +96,12 @@ export default {
     const newMessage = ref("");
     const isLoading = ref(false);
 
-    // ✅ Met à jour les anciens messages utilisateur
+    /**
+     * Met à jour les anciens messages de l’utilisateur avec le nouveau pseudo et la nouvelle photo
+     * @param {string} oldPseudo - L’ancien pseudo de l’utilisateur
+     * @param {string} newPseudo - Le nouveau pseudo de l’utilisateur
+     * @param {string} newPhoto - La nouvelle photo de profil de l’utilisateur
+     */
     const updateMessagesProfile = (oldPseudo, newPseudo, newPhoto) => {
       messages.value.forEach(msg => {
         if (!msg.fromBot && msg.user === oldPseudo) {
@@ -102,7 +111,10 @@ export default {
       });
     };
 
-    // ✅ Met à jour les anciens messages du bot (renommage automatique)
+    /**
+     * Met à jour les anciens messages du bot avec le nouveau nom et la nouvelle photo
+     * (renommage automatique si le bot change)
+     */
     const updateBotMessages = () => {
       messages.value.forEach(msg => {
         if (msg.fromBot) {
@@ -112,12 +124,19 @@ export default {
       });
     };
 
+    /**
+     * Envoie un message à l’API du serveur (Groq)
+     * Ajoute d’abord le message de l’utilisateur au chat
+     * Puis envoie la requête au serveur pour obtenir une réponse du bot
+     * En cas d’erreur, affiche un message d’erreur
+     */
     const sendMessage = async () => {
       if (!newMessage.value.trim() || isLoading.value) return;
 
       const userText = newMessage.value;
       const currentUser = userPseudo.value || "Utilisateur";
 
+      // Ajoute le message de l’utilisateur au chat
       messages.value.push({
         id: Date.now(),
         user: currentUser,
@@ -126,10 +145,11 @@ export default {
         fromBot: false
       });
 
-      newMessage.value = "";
+      newMessage.value = "";  // Réinitialise le champ de saisie
       isLoading.value = true;
 
       try {
+        // Appelle le serveur Express pour obtenir une réponse du bot
         const response = await fetch("http://localhost:3001/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -141,6 +161,7 @@ export default {
 
         const data = await response.json();
 
+        // Ajoute la réponse du bot au chat
         messages.value.push({
           id: Date.now() + 1,
           user: bot.name,
@@ -152,6 +173,7 @@ export default {
       } catch (err) {
         console.error("Erreur bot :", err);
 
+        // Affiche un message d’erreur si le bot est indisponible
         messages.value.push({
           id: Date.now() + 2,
           user: bot.name,
@@ -164,11 +186,18 @@ export default {
       isLoading.value = false;
     };
 
-    // ✅ Sauvegarde automatique
+    /**
+     * Watcher pour sauvegarder automatiquement les messages dans localStorage
+     * L’option deep: true permet de surveiller les changements en profondeur
+     */
     watch(messages, (newVal) => {
       localStorage.setItem("messages", JSON.stringify(newVal));
     }, { deep: true });
 
+    /**
+     * Charge les données utilisateur au montage du composant
+     * Met à jour les messages existants si le profil a changé
+     */
     onMounted(() => {
       const storedPseudo = localStorage.getItem("userPseudo") || "";
       const storedPhoto = localStorage.getItem("userPhoto") || "/default_pp.png";
@@ -178,11 +207,14 @@ export default {
 
       updateMessagesProfile(storedPseudo, storedPseudo, storedPhoto);
 
-      // ✅ Renomme les anciens messages du bot
+      // Renomme les anciens messages du bot avec le nom correct
       updateBotMessages();
     });
 
-    // ✅ Mise à jour si localStorage change
+    /**
+     * Écoute les changements de localStorage (par exemple si le profil est modifié)
+     * Met à jour les messages avec le nouveau pseudo et la nouvelle photo
+     */
     window.addEventListener("storage", () => {
       const newPseudo = localStorage.getItem("userPseudo") || "";
       const newPhoto = localStorage.getItem("userPhoto") || "/default_pp.png";
@@ -196,6 +228,10 @@ export default {
       updateBotMessages();
     });
 
+    /**
+     * Gère la déconnexion de l’utilisateur
+     * Supprime les données de session et redirige vers le login
+     */
     const handleLogout = () => {
       localStorage.removeItem("userPseudo");
       localStorage.removeItem("userPhoto");

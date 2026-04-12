@@ -31,11 +31,9 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 
-
 export default {
   setup() {
     const router = useRouter();
-
 
     const pseudo = ref("");
     const email = ref("");
@@ -43,30 +41,42 @@ export default {
     const confirm = ref("");
     const error = ref("");
 
-const handleRegister = (e) => {
-  e.preventDefault();
+    /**
+     * Gère l'inscription d'un nouvel utilisateur
+     * Vérifie les données et les stocke dans localStorage
+     * @param {Event} e - Événement de submission du formulaire
+     */
+    const handleRegister = (e) => {
+      e.preventDefault();
 
-  if (!pseudo.value || !email.value || !password.value || !confirm.value) {
-    error.value = "Veuillez remplir tous les champs.";
-    return;
-  }
+      // Vérifie que tous les champs sont remplis
+      if (!pseudo.value || !email.value || !password.value || !confirm.value) {
+        error.value = "Veuillez remplir tous les champs.";
+        return;
+      }
 
-  if (password.value !== confirm.value) {
-    error.value = "Les mots de passe ne correspondent pas.";
-    return;
-  }
+      // Vérifie que les deux mots de passe correspondent
+      if (password.value !== confirm.value) {
+        error.value = "Les mots de passe ne correspondent pas.";
+        return;
+      }
 
-  // Efface tous les anciens utilisateurs
-  localStorage.clear();
+      // Efface toutes les données existantes dans localStorage (ancien utilisateur)
+      localStorage.clear();
 
-  // Crée le nouvel utilisateur
-  const newUser = { pseudo: pseudo.value, email: email.value, password: password.value };
-  localStorage.setItem("user", JSON.stringify(newUser));
+      // Crée le nouvel utilisateur avec les données saisies
+      const newUser = { pseudo: pseudo.value, email: email.value, password: password.value };
+      localStorage.setItem("user", JSON.stringify(newUser));
 
-  alert(`Compte créé pour ${pseudo.value} !`);
-  router.push("/");
-};
+      // Message de confirmation
+      alert(`Compte créé pour ${pseudo.value} !`);
+      // Redirige vers la page de connexion
+      router.push("/");
+    };
 
+    /**
+     * Redirige l'utilisateur vers la page de connexion
+     */
     const goToLogin = () => router.push("/");
 
     return { pseudo, email, password, confirm, error, handleRegister, goToLogin };

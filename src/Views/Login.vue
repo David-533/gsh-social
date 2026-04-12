@@ -32,40 +32,53 @@ export default {
     const pseudo = ref("");
     const password = ref("");
     const error = ref("");
-const handleLogin = (e) => {
-  e.preventDefault();
 
-  const storedUser = JSON.parse(localStorage.getItem("user"));
+    /**
+     * Gère la connexion de l'utilisateur
+     * Vérifie les identifiants contre ceux stockés dans localStorage
+     * @param {Event} e - Événement de submission du formulaire
+     */
+    const handleLogin = (e) => {
+      e.preventDefault();
 
-  if (!storedUser) {
-    error.value = "Aucun compte trouvé, veuillez vous inscrire.";
-    return;
-  }
+      // Récupère l'utilisateur enregistré du localStorage
+      const storedUser = JSON.parse(localStorage.getItem("user"));
 
-  if (pseudo.value === storedUser.pseudo && password.value === storedUser.password) {
-    alert(`Bienvenue ${pseudo.value} !`);
+      // Vérifie si un utilisateur est enregistré
+      if (!storedUser) {
+        error.value = "Aucun compte trouvé, veuillez vous inscrire.";
+        return;
+      }
 
-    // 🔥 Recharge depuis localStorage si des valeurs ont été modifiées
-    const savedPseudo = localStorage.getItem("userPseudo") || storedUser.pseudo;
-    const savedPhoto = localStorage.getItem("userPhoto") || storedUser.photo || "/default_pp.png";
-    const savedBio = localStorage.getItem("userBio") || storedUser.bio || "";
+      // Vérifie les identifiants (pseudo et mot de passe)
+      if (pseudo.value === storedUser.pseudo && password.value === storedUser.password) {
+        alert(`Bienvenue ${pseudo.value} !`);
 
-    localStorage.setItem("userPseudo", savedPseudo);
-    localStorage.setItem("userPhoto", savedPhoto);
-    localStorage.setItem("userBio", savedBio);
+        // Recharge les données depuis localStorage (en cas de modification dans le profil)
+        const savedPseudo = localStorage.getItem("userPseudo") || storedUser.pseudo;
+        const savedPhoto = localStorage.getItem("userPhoto") || storedUser.photo || "/default_pp.png";
+        const savedBio = localStorage.getItem("userBio") || storedUser.bio || "";
 
-    localStorage.setItem("isLogged", "true");
+        // Sauvegarde les données utilisateur dans localStorage
+        localStorage.setItem("userPseudo", savedPseudo);
+        localStorage.setItem("userPhoto", savedPhoto);
+        localStorage.setItem("userBio", savedBio);
 
-    router.push("/home");
-  } else {
-    error.value = "Pseudo ou mot de passe incorrect.";
-  }
-};
+        // Marque l'utilisateur comme connecté
+        localStorage.setItem("isLogged", "true");
 
+        // Redirige vers la page d'accueil
+        router.push("/home");
+      } else {
+        error.value = "Pseudo ou mot de passe incorrect.";
+      }
+    };
 
-
-  const goToRegister = () => {
-    router.push("/inscription");
+    /**
+     * Redirige l'utilisateur vers la page d'inscription
+     */
+    const goToRegister = () => {
+      router.push("/inscription");
     };
 
     return { pseudo, password, error, handleLogin, goToRegister };

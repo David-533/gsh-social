@@ -115,6 +115,10 @@
 </template>
 
 <script>
+/**
+ * Composant Profil - Affiche le profil utilisateur avec la galerie de posts
+ * Permet d’ajouter des posts, de commenter et de liker
+ */
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
@@ -123,6 +127,7 @@ export default {
   setup() {
     const router = useRouter();
 
+    // State du profil utilisateur
     const userPseudo = ref(localStorage.getItem("userPseudo") || "");
     const userPhoto = ref(localStorage.getItem("userPhoto") || null);
     const userBio = ref(localStorage.getItem("userBio") || "");
@@ -132,21 +137,30 @@ export default {
     const followers = ref(parseInt(localStorage.getItem("userFollowers") || "0"));
     const following = ref(parseInt(localStorage.getItem("userFollowing") || "0"));
 
+    // State des posts et commentaires
     const posts = ref([]);
     const comments = ref([]);
     const newComment = ref("");
 
+    // State pour la modal
     const modalOpen = ref(false);
     const modalIndex = ref(0);
     const isLiked = ref(false);
     const optionsMenuOpen = ref(false);
 
+    /**
+     * Charge les données du profil au montage du composant
+     */
     onMounted(() => {
       posts.value = JSON.parse(localStorage.getItem("userPosts") || "[]");
       comments.value = JSON.parse(localStorage.getItem("userComments") || "[]");
       isLiked.value = JSON.parse(localStorage.getItem("isLiked") || "false");
     });
 
+    /**
+     * Gère la déconnexion de l’utilisateur
+     * Sauvegarde les donnees du profil avant de rediriger vers le login
+     */
     const handleLogout = () => {
       localStorage.setItem("userPseudo", userPseudo.value);
       localStorage.setItem("userBio", userBio.value);
@@ -155,74 +169,102 @@ export default {
       router.push("/login");
     };
 
+    /**
+     * Redirige vers la page de modification du profil
+     */
     const goToModifierProfil = () => {
       router.push("/modifier-profil");
     };
 
+    /**
+     * Déclenche l’input file caché pour l’ajout de post
+     */
     const triggerPostInput = () => postInput.value.click();
 
-const handlePostFileChange = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+    /**
+     * Gère le téléchargement d’une image de post
+     * Rédimensionne l’image si elle dépasse 2500px
+     * Comprime en JPEG 98% de qualité (très haute qualité)
+     * @param {Event} e - L’événement du changement de fichier
+     */
+    const handlePostFileChange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
 
-  const reader = new FileReader();
+      const reader = new FileReader();
 
-  reader.onload = (event) => {
-    const img = new Image();
+      reader.onload = (event) => {
+        const img = new Image();
 
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
 
-      let width = img.width;
-      let height = img.height;
+          let width = img.width;
+          let height = img.height;
 
-      // ✅ Seulement si l’image est vraiment énorme
-      const maxSize = 2500;
+          // Seulement redimensionne si l’image est vraiment énorme (> 2500px)
+          const maxSize = 2500;
 
-      if (width > maxSize || height > maxSize) {
-        const ratio = Math.min(maxSize / width, maxSize / height);
-        width = width * ratio;
-        height = height * ratio;
-      }
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width = width * ratio;
+            height = height * ratio;
+          }
 
-      canvas.width = width;
-      canvas.height = height;
+          canvas.width = width;
+          canvas.height = height;
 
-      ctx.drawImage(img, 0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
 
-      // ✅ Compression très haute qualité (quasi aucune perte)
-      const finalImage = canvas.toDataURL("image/jpeg", 0.98);
+          // Compression très haute qualité (98%) pour minimiser la perte
+          const finalImage = canvas.toDataURL("image/jpeg", 0.98);
 
-      // ✅ Ajout du post (stable)
-      posts.value.push(finalImage);
+          // Ajoute le post à la galerie
+          posts.value.push(finalImage);
 
-      // ✅ Sauvegarde
-      localStorage.setItem("userPosts", JSON.stringify(posts.value));
+          // Sauvegarde dans localStorage
+          localStorage.setItem("userPosts", JSON.stringify(posts.value));
+        };
+
+        img.src = event.target.result;
+      };
+
+      reader.readAsDataURL(file);
     };
 
-    img.src = event.target.result;
-  };
-
-  reader.readAsDataURL(file);
-};
-
-
+    /**
+     * Ouvre la modal d’affichage du post
+     * @param {number} index - L’indice du post à afficher
+     */
     const openModal = index => {
       modalIndex.value = index;
       modalOpen.value = true;
     };
 
+    /**
+     * Ferme la modal d’affichage
+     */
     const closeModal = () => modalOpen.value = false;
 
+    /**
+     * Bascule le menu des options (3 points)
+     */
     const toggleOptionsMenu = () => {
       optionsMenuOpen.value = !optionsMenuOpen.value;
     };
 
+    /**
+     * Ferme le menu des options
+     */
     const closeOptionsMenu = () => {
       optionsMenuOpen.value = false;
     };
 
+    /**
+     * Supprime un post après confirmation
+     * @param {number} index - L’indice du post à supprimer
+     */
     const deletePost = (index) => {
       if (confirm("Voulez-vous vraiment supprimer cette publication ?")) {
         posts.value.splice(index, 1);
@@ -232,6 +274,10 @@ const handlePostFileChange = (e) => {
       closeOptionsMenu();
     };
 
+    /**
+     * Ajoute un commentaire à un post
+     * @param {number} index - L’indice du post auquel ajouter un commentaire
+     */
     const addComment = index => {
       if (!newComment.value.trim()) return;
       if (!comments.value[index]) comments.value[index] = [];
@@ -240,6 +286,9 @@ const handlePostFileChange = (e) => {
       localStorage.setItem("userComments", JSON.stringify(comments.value));
     };
 
+    /**
+     * Bascule le like d’un post
+     */
     const toggleLike = () => {
       isLiked.value = !isLiked.value;
       localStorage.setItem("isLiked", JSON.stringify(isLiked.value));

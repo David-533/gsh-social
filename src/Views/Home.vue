@@ -95,6 +95,10 @@
 </template>
 
 <script>
+/**
+ * Composant Home - Page principale avec le flux de posts
+ * Permet de créer des posts, liker, et commenter
+ */
 import { ref, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
@@ -110,18 +114,21 @@ export default {
     const imagePreview = ref(null);
     const errorMessage = ref("");
 
-    // ✅ Recharge la photo + met à jour les posts et commentaires existants
+    /**
+     * Charge la photo de profil au montage du composant
+     * Met à jour les posts et commentaires existants avec la nouvelle photo
+     */
     onMounted(() => {
       const newPhoto = localStorage.getItem("userPhoto") || "/default_pp.png";
       userPhoto.value = newPhoto;
 
+      // Met à jour la photo de profil dans les posts existants
       posts.value.forEach(post => {
-        // ✅ Met à jour la photo des posts
         if (post.user === userPseudo.value) {
           post.userPhoto = newPhoto;
         }
 
-        // ✅ Met à jour la photo des commentaires
+        // Met à jour la photo de profil dans les commentaires existants
         post.comments.forEach(com => {
           if (com.user === userPseudo.value) {
             com.userPhoto = newPhoto;
@@ -130,7 +137,10 @@ export default {
       });
     });
 
-    // ✅ Met à jour automatiquement si localStorage change
+    /**
+     * Écoute les changements de localStorage (par exemple si la photo est modifiée dans le profil)
+     * Met à jour automatiquement tous les posts et commentaires avec la nouvelle photo
+     */
     window.addEventListener("storage", () => {
       const newPhoto = localStorage.getItem("userPhoto") || "/default_pp.png";
       userPhoto.value = newPhoto;
@@ -148,17 +158,32 @@ export default {
       });
     });
 
+    /**
+     * Watcher pour sauvegarder les posts dans localStorage chaque fois qu'ils changent
+     * L'option deep: true permet de surveiller les changements en profondeur (objets imbriqués)
+     */
     watch(posts, (newPosts) => {
       localStorage.setItem("homePosts", JSON.stringify(newPosts));
     }, { deep: true });
 
+    /**
+     * Gère la déconnexion de l'utilisateur
+     * Sauvegarde les données avant redirection et redirige vers la page de connexion
+     */
     const handleLogout = () => {
       localStorage.setItem("userPseudo", userPseudo.value);
       localStorage.setItem("userPhoto", userPhoto.value);
       router.push("/login");
     };
 
+    /**
+     * Ouvre la modal pour créer un nouveau post
+     */
     const openPostModal = () => { isModalOpen.value = true; errorMessage.value = ""; };
+
+    /**
+     * Ferme la modal et réinitialise tous les champs
+     */
     const closePostModal = () => {
       isModalOpen.value = false;
       postText.value = "";
@@ -166,58 +191,69 @@ export default {
       errorMessage.value = "";
     };
 
-   const handleImageUpload = (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
+    /**
+     * Gère le téléchargement et la compression d'image
+     * Rédimensionne l'image proportionnellement si elle est trop grande (max 1024px)
+     * Convertit en JPEG compressé à 80% de qualité pour réduire la taille
+     * @param {Event} event - L'événement du changement de fichier
+     */
+    const handleImageUpload = (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
 
-  const reader = new FileReader();
+      const reader = new FileReader();
 
-  reader.onload = (event) => {
-    const img = new Image();
+      reader.onload = (event) => {
+        const img = new Image();
 
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const maxSize = 1024; // ✅ Taille max (tu peux mettre 800 si tu veux)
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const maxSize = 1024; // Taille maximale de l'image en pixels
 
-      let width = img.width;
-      let height = img.height;
+          let width = img.width;
+          let height = img.height;
 
-      // ✅ Redimensionnement proportionnel
-      if (width > height) {
-        if (width > maxSize) {
-          height *= maxSize / width;
-          width = maxSize;
-        }
-      } else {
-        if (height > maxSize) {
-          width *= maxSize / height;
-          height = maxSize;
-        }
-      }
+          // Redimensionne proportionnellement si l'image dépasse la taille max
+          if (width > height) {
+            if (width > maxSize) {
+              height *= maxSize / width;
+              width = maxSize;
+            }
+          } else {
+            if (height > maxSize) {
+              width *= maxSize / height;
+              height = maxSize;
+            }
+          }
 
-      canvas.width = width;
-      canvas.height = height;
+          canvas.width = width;
+          canvas.height = height;
 
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, width, height);
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
 
-      // ✅ Convertit en Base64 compressé (JPEG 80%)
-      imagePreview.value = canvas.toDataURL("image/jpeg", 0.8);
+          // Convertit en Base64 compressé (JPEG 80% de qualité)
+          imagePreview.value = canvas.toDataURL("image/jpeg", 0.8);
+        };
+
+        img.src = event.target.result;
+      };
+
+      reader.readAsDataURL(file);
     };
 
-    img.src = event.target.result;
-  };
-
-  reader.readAsDataURL(file);
-};
-
-
+    /**
+     * Crée et ajoute un nouveau post
+     * Valide que le post contient au moins du texte ou une image
+     * Ajoute le post au début de la liste (unshift)
+     */
     const submitPost = () => {
       if (!postText.value.trim() && !imagePreview.value) {
         errorMessage.value = "⚠ Vous devez écrire un texte ou ajouter une image.";
         return;
       }
 
+      // Ajoute le post au début de la liste pour l'afficher en haut
       posts.value.unshift({
         user: userPseudo.value,
         userPhoto: userPhoto.value || "/default_pp.png",
@@ -232,11 +268,22 @@ export default {
       closePostModal();
     };
 
+    /**
+     * Bascule le "like" d'un post
+     * Si le post n'est pas aimé, l'aime et augmente le compteur de 1
+     * Sinon, retire le like et diminue le compteur de 1
+     * @param {Object} post - L'objet post à liker
+     */
     const toggleLike = (post) => {
       post.liked = !post.liked;
       post.likes += post.liked ? 1 : -1;
     };
 
+    /**
+     * Ajoute un commentaire à un post
+     * Vérifie que le commentaire n'est pas vide
+     * @param {Object} post - Le post auquel ajouter un commentaire
+     */
     const addComment = (post) => {
       if (!post.newComment.trim()) return;
       post.comments.push({
@@ -244,7 +291,7 @@ export default {
         userPhoto: userPhoto.value || "/default_pp.png",
         text: post.newComment
       });
-      post.newComment = "";
+      post.newComment = "";  // Réinitialise le champ de commentaire
     };
 
     return {
