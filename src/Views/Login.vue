@@ -1,89 +1,9 @@
 <template>
-  <div class="neon-background">
-    <nav class="navbar">
-      <div class="title">SIO SOCIAL</div>
-    </nav>
-
-    <form class="login-form" @submit="handleLogin">
-      <h2 class="form-title">Connexion</h2>
-
-      <label for="pseudo">PSEUDO</label>
-      <input type="text" id="pseudo" v-model="pseudo" placeholder="pseudo_hj" autocomplete="off" />
-
-      <label for="password">MOT DE PASSE</label>
-      <input type="password" id="password" v-model="password" placeholder="••••••••" autocomplete="off"/>
-
-      <div class="error-message" v-if="error">{{ error }}</div>
-
-      <button type="submit">Se connecter</button>
-      <button type="button" @click="goToRegister">S'inscrire</button>
-    </form>
-  </div>
+  <AuthScreen mode="login" />
 </template>
 
-<script>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
-
-export default {
-  setup() {
-    const router = useRouter();
-
-    const pseudo = ref("");
-    const password = ref("");
-    const error = ref("");
-
-    /**
-     * Gère la connexion de l'utilisateur
-     * Vérifie les identifiants contre ceux stockés dans localStorage
-     * @param {Event} e - Événement de submission du formulaire
-     */
-    const handleLogin = (e) => {
-      e.preventDefault();
-
-      // Récupère l'utilisateur enregistré du localStorage
-      const storedUser = JSON.parse(localStorage.getItem("user"));
-
-      // Vérifie si un utilisateur est enregistré
-      if (!storedUser) {
-        error.value = "Aucun compte trouvé, veuillez vous inscrire.";
-        return;
-      }
-
-      // Vérifie les identifiants (pseudo et mot de passe)
-      if (pseudo.value === storedUser.pseudo && password.value === storedUser.password) {
-        alert(`Bienvenue ${pseudo.value} !`);
-
-        // Recharge les données depuis localStorage (en cas de modification dans le profil)
-        const savedPseudo = localStorage.getItem("userPseudo") || storedUser.pseudo;
-        const savedPhoto = localStorage.getItem("userPhoto") || storedUser.photo || "/default_pp.png";
-        const savedBio = localStorage.getItem("userBio") || storedUser.bio || "";
-
-        // Sauvegarde les données utilisateur dans localStorage
-        localStorage.setItem("userPseudo", savedPseudo);
-        localStorage.setItem("userPhoto", savedPhoto);
-        localStorage.setItem("userBio", savedBio);
-
-        // Marque l'utilisateur comme connecté
-        localStorage.setItem("isLogged", "true");
-
-        // Redirige vers la page d'accueil
-        router.push("/home");
-      } else {
-        error.value = "Pseudo ou mot de passe incorrect.";
-      }
-    };
-
-    /**
-     * Redirige l'utilisateur vers la page d'inscription
-     */
-    const goToRegister = () => {
-      router.push("/inscription");
-    };
-
-    return { pseudo, password, error, handleLogin, goToRegister };
-  }
-};
+<script setup>
+import AuthScreen from "./AuthScreen.vue";
 </script>
 
 

@@ -1,4 +1,4 @@
-// Serveur Express.js qui gère le chat avec l'API Groq
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
@@ -13,6 +13,7 @@ app.use(express.json());
 // ✅ Configuration de l'API Groq
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 const GROQ_MODEL = "openai/gpt-oss-120b";  // Modèle d'IA à utiliser
+const PORT = Number(process.env.PORT) || 3001;
 
 // ✅ Stockage simple de l'utilisateur connecté (en mémoire, pas de base de données)
 let connectedUser = null;
@@ -113,6 +114,6 @@ Réponds toujours de manière naturelle, chaleureuse et adaptée.
 });
 
 // Démarre le serveur sur le port 3001
-app.listen(3001, () => {
-  console.log("✅ Serveur Groq sur http://localhost:3001");
+app.listen(PORT, () => {
+  console.log(`✅ Serveur social sur http://localhost:${PORT}`);
 });

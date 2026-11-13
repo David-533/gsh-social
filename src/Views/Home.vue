@@ -1,316 +1,286 @@
 <template>
-  <div class="page-container">
-    <!-- NAVBAR -->
-    <nav class="navbar">
-      <div class="title">SOCIAL</div>
-      <div class="nav-links">
-        <router-link to="/home" class="nav-item">Accueil</router-link>
-        <router-link to="/profil" class="nav-item">Profile</router-link>
-        <router-link to="/messages" class="nav-item">Messages</router-link>
+  <main class="social-page feed-page">
+    <header class="page-heading">
+      <div>
+        <p class="page-eyebrow">TON CERCLE, EN DIRECT</p>
+        <h1>Fil d’actualité</h1>
+        <p class="page-description">Les nouvelles et les moments partagés par ta communauté.</p>
       </div>
-      <button class="logout-btn" @click="handleLogout">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 24 24">
-          <path d="M10 17v-3H3v-4h7V7l5 5-5 5zM20 3h-8v2h8v14h-8v2h8c1.1 0 2-0.9 2-2V5c0-1.1-0.9-2-2-2z"/>
-        </svg>
+      <div class="feed-header-actions">
+        <button class="primary-action" type="button" @click="openPostModal">＋ <span>Créer une publication</span></button>
+      </div>
+    </header>
+
+    <section class="feed-column" aria-label="Fil d’actualité">
+      <button class="quick-composer" type="button" @click="openPostModal">
+        <img :src="userPhoto" :alt="`Photo de ${userPseudo}`" />
+        <span>Quoi de neuf, {{ userPseudo }} ?</span>
+        <span class="composer-photo" aria-label="Ajouter une photo">▧</span>
       </button>
-    </nav>
 
-    <!-- CONTENU -->
-    <div class="content">
-      <div class="posts-container">
-        <div v-for="(post, postIndex) in posts" :key="postIndex" class="post-card">
-          
-          <!-- POST HEADER -->
-          <div class="post-header">
-            <img :src="post.userPhoto || '/default_pp.png'" class="post-pic" />
-            <p class="post-user">{{ post.user || 'Utilisateur' }}</p>
-          </div>
-
-          <!-- POST TEXTE -->
-          <p class="post-text" v-if="post.text">{{ post.text }}</p>
-
-          <!-- POST IMAGE -->
-          <div v-if="post.image" class="post-image-wrapper">
-            <img :src="post.image" class="post-image" />
-          </div>
-
-          <!-- ACTIONS -->
-          <div class="post-actions">
-            <button class="like-btn" @click="toggleLike(post)">
-              <span :class="{ liked: post.liked }">❤️</span> {{ post.likes }}
-            </button>
-          </div>
-
-          <!-- COMMENTAIRES -->
-          <div class="comments-section">
-            <div v-for="(com, i) in post.comments" :key="i" class="comment">
-              <img :src="com.userPhoto || '/default_pp.png'" class="comment-pic" />
-              <strong>{{ com.user || 'Utilisateur' }}:</strong> {{ com.text }}
-            </div>
-
-            <div class="add-comment">
-              <input v-model="post.newComment" type="text" placeholder="Écrire un commentaire..." @keyup.enter="addComment(post)" />
-              <button class="comment-btn" @click="addComment(post)">Envoyer</button>
-            </div>
-          </div>
-
-        </div>
+      <div class="feed-section-heading">
+        <h2>Publications</h2>
+        <span>{{ posts.length }}</span>
       </div>
 
-      <!-- BOUTON AJOUT POST -->
-      <button class="floating-btn" @click="openPostModal">+</button>
-
-      <!-- MODAL -->
-      <div v-if="isModalOpen" class="modal-overlay" @click.self="closePostModal">
-        <div class="modal">
-          <div class="modal-header">
-            <h2>Créer un post</h2>
-          </div>
-
-          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-
-          <div class="modal-textarea-wrapper">
-            <textarea v-model="postText" placeholder="Écris ton post..."></textarea>
-          </div>
-
-          <div class="file-upload">
-            <label for="file-input" class="file-label"></label>
-            <input id="file-input" type="file" accept="image/*" @change="handleImageUpload" />
-            <span v-if="imagePreview">Aperçu sélectionné</span>
-          </div>
-
-          <div v-if="imagePreview" class="img-preview">
-            <img :src="imagePreview" />
-          </div>
-
-          <div class="modal-actions">
-            <button class="publish-btn" @click="submitPost">Publier</button>
-            <button class="cancel-btn" @click="closePostModal">Annuler</button>
-          </div>
-        </div>
+      <div v-if="isLoading" class="empty-feed"><p>Chargement du fil…</p></div>
+      <p v-else-if="feedError" class="feed-error" role="alert">{{ feedError }}</p>
+      <div v-else-if="!posts.length" class="empty-feed">
+        <span class="empty-mark" aria-hidden="true">✳</span>
+        <h2>Ton fil est calme</h2>
+        <p>Les publications des personnes que tu suis apparaîtront ici.</p>
+        <RouterLink class="text-action" to="/recherche">Trouver des membres à suivre</RouterLink>
       </div>
 
+      <article v-for="(post, postIndex) in posts" :key="post.id || postIndex" :ref="element => observePost(post, element)" class="post-card">
+        <header class="post-header">
+          <img :src="post.userPhoto || defaultPhoto" :alt="`Photo de ${post.user || userPseudo}`" class="post-pic" />
+          <div class="post-author">
+            <RouterLink :to="`/profil/${encodeURIComponent(post.authorId)}`">{{ post.authorName }}</RouterLink>
+            <time :datetime="post.createdAt || undefined">{{ formatPostDate(post.createdAt) }}</time>
+          </div>
+          <span class="post-community-label">Communauté</span>
+        </header>
+
+        <p v-if="post.text" class="post-text">{{ post.text }}</p>
+        <div v-if="post.mediaUrl" class="post-image-wrapper">
+          <video v-if="post.mediaType === 'video'" :src="post.mediaUrl" class="post-image" controls preload="metadata"></video>
+          <img v-else :src="post.mediaUrl" :alt="`Publication de ${post.authorName}`" class="post-image" />
+        </div>
+
+        <div class="post-actions">
+          <button class="like-btn" :class="{ liked: post.liked }" type="button" :aria-pressed="post.liked" @click="toggleLike(post)">
+            <span aria-hidden="true">{{ post.liked ? "♥" : "♡" }}</span>
+            <span>{{ post.likeCount || 0 }} J’aime</span>
+          </button>
+          <span class="comment-count">{{ post.comments?.length || 0 }} commentaire{{ post.comments?.length === 1 ? '' : 's' }}</span>
+        </div>
+
+        <div class="comments-section">
+          <div v-for="(comment, index) in post.comments || []" :key="comment.id || index" class="comment">
+            <img :src="comment.authorPhoto || defaultPhoto" :alt="`Photo de ${comment.authorName}`" class="comment-pic" />
+            <p><strong>{{ comment.authorName }}</strong> {{ comment.text }}</p>
+          </div>
+          <form class="add-comment" @submit.prevent="addComment(post)">
+            <img :src="userPhoto" :alt="`Photo de ${userPseudo}`" class="comment-pic" />
+            <input v-model="post.newComment" :aria-label="`Commenter la publication de ${post.user || userPseudo}`" type="text" placeholder="Écrire un commentaire…" />
+            <button class="comment-btn" type="submit" :disabled="!post.newComment?.trim()">Envoyer</button>
+          </form>
+        </div>
+      </article>
+    </section>
+
+    <div v-if="isModalOpen" class="modal-overlay" @click.self="closePostModal">
+      <form class="modal" @submit.prevent="submitPost">
+        <header class="modal-header"><h2>Créer une publication</h2><button class="modal-close" type="button" aria-label="Fermer" @click="closePostModal">×</button></header>
+        <div class="composer-identity"><img :src="userPhoto" :alt="`Photo de ${userPseudo}`" /><strong>{{ userPseudo }}</strong></div>
+        <p v-if="errorMessage" class="error-message" role="alert">{{ errorMessage }}</p>
+        <textarea v-model="postText" aria-label="Texte de la publication" placeholder="Qu’aimerais-tu partager ?"></textarea>
+        <div v-if="mediaPreview" class="img-preview">
+          <video v-if="selectedFile?.type.startsWith('video/')" :src="mediaPreview" controls></video>
+          <img v-else :src="mediaPreview" alt="Aperçu de la photo" />
+        </div>
+        <div class="composer-tools">
+          <label class="upload-label" for="file-input"><span aria-hidden="true">▧</span> Ajouter photo ou vidéo</label>
+          <input id="file-input" type="file" accept="image/*,video/*" @change="handleMediaUpload" />
+          <button class="publish-btn" type="submit" :disabled="isPublishing">{{ isPublishing ? "Publication…" : "Publier" }}</button>
+        </div>
+      </form>
     </div>
-  </div>
+  </main>
 </template>
 
-<script>
-/**
- * Composant Home - Page principale avec le flux de posts
- * Permet de créer des posts, liker, et commenter
- */
-import { ref, watch, onMounted } from "vue";
-import { useRouter } from "vue-router";
+<script setup>
+import { onMounted, onUnmounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { DEFAULT_PROFILE_PHOTO, useUserStore } from "../stores/userStore";
+import {
+  addPostComment,
+  createPost,
+  recordPostView,
+  subscribeFeed,
+  subscribePostComments,
+  subscribePostLikes,
+  togglePostLike,
+} from "../services/socialService";
 
-export default {
-  name: "Home",
-  setup() {
-    const router = useRouter();
-    const userPseudo = ref(localStorage.getItem("userPseudo") || "Utilisateur");
-    const userPhoto = ref(localStorage.getItem("userPhoto") || "/default_pp.png");
-    const posts = ref(JSON.parse(localStorage.getItem("homePosts") || "[]"));
-    const isModalOpen = ref(false);
-    const postText = ref("");
-    const imagePreview = ref(null);
-    const errorMessage = ref("");
+const route = useRoute();
+const router = useRouter();
+const userStore = useUserStore();
+const defaultPhoto = DEFAULT_PROFILE_PHOTO;
+const profile = userStore.getProfile();
+const userPseudo = ref(profile.pseudo || "Utilisateur");
+const userPhoto = ref(profile.photo || defaultPhoto);
+const posts = ref([]);
+const isLoading = ref(true);
+const feedError = ref("");
+const isModalOpen = ref(false);
+const isPublishing = ref(false);
+const postText = ref("");
+const selectedFile = ref(null);
+const mediaPreview = ref("");
+const errorMessage = ref("");
+const postSubscriptions = new Map();
+let stopFeed = null;
+let postViewObserver = null;
+const viewedPostIds = new Set();
 
-    /**
-     * Charge la photo de profil au montage du composant
-     * Met à jour les posts et commentaires existants avec la nouvelle photo
-     */
-    onMounted(() => {
-      const newPhoto = localStorage.getItem("userPhoto") || "/default_pp.png";
-      userPhoto.value = newPhoto;
+const observePost = (post, element) => {
+  if (!element || !postViewObserver || viewedPostIds.has(post.id) || element.dataset.postId === post.id) return;
+  element.dataset.postId = post.id;
+  postViewObserver.observe(element);
+};
 
-      // Met à jour la photo de profil dans les posts existants
-      posts.value.forEach(post => {
-        if (post.user === userPseudo.value) {
-          post.userPhoto = newPhoto;
-        }
+const updatePost = (postId, changes) => {
+  posts.value = posts.value.map(post => post.id === postId ? { ...post, ...changes } : post);
+};
 
-        // Met à jour la photo de profil dans les commentaires existants
-        post.comments.forEach(com => {
-          if (com.user === userPseudo.value) {
-            com.userPhoto = newPhoto;
-          }
+const stopPostSubscriptions = postId => {
+  postSubscriptions.get(postId)?.forEach(unsubscribe => unsubscribe());
+  postSubscriptions.delete(postId);
+};
+
+onMounted(() => {
+  if ("IntersectionObserver" in window) {
+    postViewObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const postId = entry.target.dataset.postId;
+        if (!entry.isIntersecting || entry.intersectionRatio < 0.15 || viewedPostIds.has(postId)) return;
+        const post = posts.value.find(item => item.id === postId);
+        if (!post) return;
+        viewedPostIds.add(postId);
+        postViewObserver.unobserve(entry.target);
+        recordPostView(post.id, userStore.user.uid, post.authorId).catch(error => {
+          console.warn("Post view could not be recorded", error);
         });
       });
-    });
-
-    /**
-     * Écoute les changements de localStorage (par exemple si la photo est modifiée dans le profil)
-     * Met à jour automatiquement tous les posts et commentaires avec la nouvelle photo
-     */
-    window.addEventListener("storage", () => {
-      const newPhoto = localStorage.getItem("userPhoto") || "/default_pp.png";
-      userPhoto.value = newPhoto;
-
-      posts.value.forEach(post => {
-        if (post.user === userPseudo.value) {
-          post.userPhoto = newPhoto;
-        }
-
-        post.comments.forEach(com => {
-          if (com.user === userPseudo.value) {
-            com.userPhoto = newPhoto;
-          }
-        });
-      });
-    });
-
-    /**
-     * Watcher pour sauvegarder les posts dans localStorage chaque fois qu'ils changent
-     * L'option deep: true permet de surveiller les changements en profondeur (objets imbriqués)
-     */
-    watch(posts, (newPosts) => {
-      localStorage.setItem("homePosts", JSON.stringify(newPosts));
-    }, { deep: true });
-
-    /**
-     * Gère la déconnexion de l'utilisateur
-     * Sauvegarde les données avant redirection et redirige vers la page de connexion
-     */
-    const handleLogout = () => {
-      localStorage.setItem("userPseudo", userPseudo.value);
-      localStorage.setItem("userPhoto", userPhoto.value);
-      router.push("/login");
-    };
-
-    /**
-     * Ouvre la modal pour créer un nouveau post
-     */
-    const openPostModal = () => { isModalOpen.value = true; errorMessage.value = ""; };
-
-    /**
-     * Ferme la modal et réinitialise tous les champs
-     */
-    const closePostModal = () => {
-      isModalOpen.value = false;
-      postText.value = "";
-      imagePreview.value = null;
-      errorMessage.value = "";
-    };
-
-    /**
-     * Gère le téléchargement et la compression d'image
-     * Rédimensionne l'image proportionnellement si elle est trop grande (max 1024px)
-     * Convertit en JPEG compressé à 80% de qualité pour réduire la taille
-     * @param {Event} event - L'événement du changement de fichier
-     */
-    const handleImageUpload = (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-
-      reader.onload = (event) => {
-        const img = new Image();
-
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const maxSize = 1024; // Taille maximale de l'image en pixels
-
-          let width = img.width;
-          let height = img.height;
-
-          // Redimensionne proportionnellement si l'image dépasse la taille max
-          if (width > height) {
-            if (width > maxSize) {
-              height *= maxSize / width;
-              width = maxSize;
-            }
-          } else {
-            if (height > maxSize) {
-              width *= maxSize / height;
-              height = maxSize;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Convertit en Base64 compressé (JPEG 80% de qualité)
-          imagePreview.value = canvas.toDataURL("image/jpeg", 0.8);
-        };
-
-        img.src = event.target.result;
-      };
-
-      reader.readAsDataURL(file);
-    };
-
-    /**
-     * Crée et ajoute un nouveau post
-     * Valide que le post contient au moins du texte ou une image
-     * Ajoute le post au début de la liste (unshift)
-     */
-    const submitPost = () => {
-      if (!postText.value.trim() && !imagePreview.value) {
-        errorMessage.value = "⚠ Vous devez écrire un texte ou ajouter une image.";
-        return;
-      }
-
-      // Ajoute le post au début de la liste pour l'afficher en haut
-      posts.value.unshift({
-        user: userPseudo.value,
-        userPhoto: userPhoto.value || "/default_pp.png",
-        text: postText.value,
-        image: imagePreview.value || null,
-        likes: 0,
-        liked: false,
-        comments: [],
-        newComment: ""
-      });
-
-      closePostModal();
-    };
-
-    /**
-     * Bascule le "like" d'un post
-     * Si le post n'est pas aimé, l'aime et augmente le compteur de 1
-     * Sinon, retire le like et diminue le compteur de 1
-     * @param {Object} post - L'objet post à liker
-     */
-    const toggleLike = (post) => {
-      post.liked = !post.liked;
-      post.likes += post.liked ? 1 : -1;
-    };
-
-    /**
-     * Ajoute un commentaire à un post
-     * Vérifie que le commentaire n'est pas vide
-     * @param {Object} post - Le post auquel ajouter un commentaire
-     */
-    const addComment = (post) => {
-      if (!post.newComment.trim()) return;
-      post.comments.push({
-        user: userPseudo.value,
-        userPhoto: userPhoto.value || "/default_pp.png",
-        text: post.newComment
-      });
-      post.newComment = "";  // Réinitialise le champ de commentaire
-    };
-
-    return {
-      userPseudo,
-      userPhoto,
-      posts,
-      handleLogout,
-      isModalOpen,
-      openPostModal,
-      closePostModal,
-      postText,
-      imagePreview,
-      errorMessage,
-      handleImageUpload,
-      submitPost,
-      toggleLike,
-      addComment
-    };
+    }, { threshold: 0.15 });
   }
+
+  if (route.query.compose === "1") {
+    openPostModal();
+    router.replace({ path: "/home" });
+  }
+
+  stopFeed = subscribeFeed(userStore.user.uid, feedPosts => {
+    isLoading.value = false;
+    feedError.value = "";
+    const activeIds = new Set(feedPosts.map(post => post.id));
+    for (const postId of postSubscriptions.keys()) if (!activeIds.has(postId)) stopPostSubscriptions(postId);
+    posts.value = feedPosts.map(post => ({
+      ...post,
+      comments: posts.value.find(current => current.id === post.id)?.comments || [],
+      likeCount: posts.value.find(current => current.id === post.id)?.likeCount || 0,
+      liked: posts.value.find(current => current.id === post.id)?.liked || false,
+      newComment: posts.value.find(current => current.id === post.id)?.newComment || "",
+    }));
+
+    feedPosts.forEach(post => {
+      if (postSubscriptions.has(post.id)) return;
+      const stopLikes = subscribePostLikes(post.id, userStore.user.uid, state => updatePost(post.id, {
+        likeCount: state.count,
+        liked: state.liked,
+      }), handleFeedError);
+      const stopComments = subscribePostComments(post.id, comments => updatePost(post.id, { comments }), handleFeedError);
+      postSubscriptions.set(post.id, [stopLikes, stopComments]);
+    });
+  }, handleFeedError);
+});
+
+onUnmounted(() => {
+  postViewObserver?.disconnect();
+  stopFeed?.();
+  postSubscriptions.forEach(unsubscribers => unsubscribers.forEach(unsubscribe => unsubscribe()));
+  if (mediaPreview.value) URL.revokeObjectURL(mediaPreview.value);
+});
+
+function handleFeedError(error) {
+  console.error("Feed Firebase error", error);
+  isLoading.value = false;
+  feedError.value = error.code === "permission-denied"
+    ? "Active Firestore et déploie firestore.rules pour voir le fil."
+    : "Le fil n’a pas pu être chargé. Vérifie la configuration Firestore.";
+}
+
+const openPostModal = () => { isModalOpen.value = true; errorMessage.value = ""; };
+
+const closePostModal = () => {
+  isModalOpen.value = false;
+  postText.value = "";
+  selectedFile.value = null;
+  if (mediaPreview.value) URL.revokeObjectURL(mediaPreview.value);
+  mediaPreview.value = "";
+  errorMessage.value = "";
+};
+
+const handleMediaUpload = event => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  errorMessage.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+    errorMessage.value = "Choisis une image ou une vidéo.";
+    return;
+  }
+  const maxSize = file.type.startsWith("video/") ? 25 : 10;
+  if (file.size > maxSize * 1024 * 1024) {
+    errorMessage.value = `Le fichier doit faire ${maxSize} Mo maximum.`;
+    return;
+  }
+  if (mediaPreview.value) URL.revokeObjectURL(mediaPreview.value);
+  selectedFile.value = file;
+  mediaPreview.value = URL.createObjectURL(file);
+};
+
+const submitPost = async () => {
+  if ((!postText.value.trim() && !selectedFile.value) || isPublishing.value) {
+    if (!postText.value.trim() && !selectedFile.value) errorMessage.value = "Ajoute un texte, une photo ou une vidéo.";
+    return;
+  }
+  isPublishing.value = true;
+  errorMessage.value = "";
+  try {
+    await createPost({ user: { ...userStore.user, ...userStore.getProfile() }, text: postText.value, file: selectedFile.value });
+    closePostModal();
+  } catch (error) {
+    console.error("Publish Firebase error", error);
+    errorMessage.value = error.message === "cloudinary-not-configured"
+      ? "Les vidéos demandent Cloudinary (voir .env.local). Les photos fonctionnent sans."
+      : error.code === "permission-denied"
+        ? "Publie les règles de firestore.rules dans Firebase."
+        : "Impossible de publier. Vérifie Firestore et Cloudinary puis réessaie.";
+  } finally {
+    isPublishing.value = false;
+  }
+};
+
+const toggleLike = async post => {
+  try {
+    await togglePostLike(post.id, userStore.user.uid);
+  } catch (error) {
+    console.error("Like Firebase error", error);
+    feedError.value = "Impossible d’enregistrer le J’aime. Vérifie les règles Firestore.";
+  }
+};
+
+const addComment = async post => {
+  const text = post.newComment?.trim();
+  if (!text) return;
+  updatePost(post.id, { newComment: "" });
+  try {
+    await addPostComment(post.id, { ...userStore.user, ...userStore.getProfile() }, text);
+  } catch (error) {
+    console.error("Comment Firebase error", error);
+    updatePost(post.id, { newComment: text });
+    feedError.value = "Impossible d’ajouter le commentaire. Vérifie les règles Firestore.";
+  }
+};
+
+const formatPostDate = value => {
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "À l’instant"
+    : new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 </script>
 
@@ -379,7 +349,8 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;
+  width: calc(100% - 200px);
+  box-sizing: border-box;
 }
 
 .posts-container {
@@ -600,6 +571,100 @@ textarea {
 .floating-btn:hover {
   transform: scale(1.15);
   box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+}
+
+.social-page { width: 100%; color: #23332d; }
+.page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 25px; }
+.page-eyebrow { margin: 0 0 7px; color: #66836f; font-size: 10px; font-weight: 700; }
+.page-heading h1 { margin: 0; color: #19382f; font: 600 30px/1.15 'Space Grotesk', sans-serif; }
+.page-description { margin: 8px 0 0; color: #77847d; font-size: 13px; }
+.primary-action { display: flex; min-height: 42px; align-items: center; gap: 8px; padding: 0 14px; border: 0; border-radius: 5px; color: #19382f; background: #c9ef74; font-size: 12px; font-weight: 700; cursor: pointer; }
+.primary-action:hover { background: #bce55e; }
+.feed-column { display: grid; width: min(100%, 660px); gap: 14px; margin: 0 auto; }
+.quick-composer { display: flex; min-height: 68px; align-items: center; gap: 12px; padding: 12px 15px; border: 1px solid #e4e9e3; border-radius: 7px; color: #78857e; background: #fff; text-align: left; cursor: pointer; }
+.quick-composer img, .composer-identity img { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; object-fit: cover; }
+.quick-composer > span:nth-child(2) { flex: 1; font-size: 13px; }
+.composer-photo { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; color: #4f7658; background: #edf4e5; font-size: 19px; }
+.feed-section-heading { display: flex; align-items: center; gap: 9px; margin: 7px 2px 0; }
+.feed-section-heading h2 { margin: 0; color: #34443c; font-size: 14px; }
+.feed-section-heading span { display: grid; min-width: 22px; height: 22px; place-items: center; border-radius: 50%; color: #617267; background: #e8eee7; font-size: 10px; }
+.empty-feed { display: grid; justify-items: center; padding: 42px 22px; border: 1px dashed #cbd6ca; border-radius: 7px; background: rgba(255,255,255,.55); text-align: center; }
+.empty-mark { display: grid; width: 43px; height: 43px; place-items: center; border-radius: 50%; color: #45694d; background: #e8f2d9; font-size: 23px; }
+.empty-feed h2 { margin: 15px 0 6px; color: #233b30; font: 600 17px 'Space Grotesk', sans-serif; }
+.empty-feed p { max-width: 330px; margin: 0; color: #77847d; font-size: 12px; line-height: 1.6; }
+.text-action { margin-top: 15px; padding: 8px 0; border: 0; color: #416247; background: none; font-size: 12px; font-weight: 700; cursor: pointer; }
+.post-card { width: 100%; padding: 17px; border: 1px solid #e4e9e3; border-radius: 7px; background: #fff; box-shadow: none; }
+.post-header { gap: 11px; }
+.post-pic { width: 42px; height: 42px; flex: 0 0 42px; }
+.post-author { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.post-author strong { overflow: hidden; color: #243a30; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.post-author time { color: #849087; font-size: 10px; }
+.post-community-label { padding: 5px 8px; border-radius: 4px; color: #617267; background: #f1f5ef; font-size: 9px; }
+.post-text { margin: 15px 0 12px; color: #34423a; font-size: 14px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.post-image-wrapper { max-height: 600px; margin-top: 10px; border-radius: 5px; background: #f0f3ef; }
+.post-image { display: block; width: 100%; height: auto; max-height: 600px; object-fit: contain; }
+.post-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding: 11px 0 4px; border-top: 1px solid #edf0ec; }
+.like-btn { display: inline-flex; align-items: center; gap: 7px; padding: 5px 0; color: #64736a; font-size: 11px; }
+.like-btn span:first-child { font-size: 19px; line-height: 1; }
+.like-btn.liked { color: #bd5b54; }
+.comment-count { color: #849087; font-size: 10px; }
+.comments-section { display: grid; gap: 10px; }
+.comment { align-items: flex-start; margin: 0; }
+.comment-pic { flex: 0 0 30px; }
+.comment p { margin: 0; color: #536159; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.comment p strong { margin-right: 4px; color: #2f4538; }
+.add-comment { align-items: center; gap: 9px; margin-top: 3px; }
+.add-comment input { min-width: 0; height: 38px; border-color: #e4e9e3; background: #fafbf9; font-size: 11px; }
+.comment-btn { flex: 0 0 auto; padding: 8px 11px; background: #edf4e5; color: #466348; font-size: 10px; }
+.modal-overlay { z-index: 100; padding: 16px; }
+.modal { width: min(100%, 540px); max-height: min(90svh, 720px); padding: 21px; border: 1px solid #e1e8df; border-radius: 8px; box-shadow: 0 22px 70px rgba(24,45,34,.2); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { margin: 0; color: #19382f; font: 600 19px 'Space Grotesk', sans-serif; }
+.modal-close { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; color: #637168; background: #f0f3ef; font-size: 21px; cursor: pointer; }
+.composer-identity { display: flex; align-items: center; gap: 10px; color: #34463a; font-size: 12px; }
+.modal textarea { height: 145px; border-color: #e3e8e2; font-size: 14px; }
+.composer-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; border-top: 1px solid #edf0ec; }
+.composer-tools input[type="file"] { display: none; }
+.upload-label { color: #4f7658; font-size: 12px; font-weight: 600; cursor: pointer; }
+.publish-btn { padding: 10px 18px; border-radius: 5px; color: #19382f; background: #c9ef74; font-size: 12px; }
+.error-message { margin: 0; color: #a9463b; font-size: 12px; }
+
+@media (max-width: 700px) {
+  .page-container { display: block; min-width: 0; }
+  .navbar {
+    width: 100%;
+    height: auto;
+    min-height: 62px;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 8px 10px;
+    z-index: 1000;
+  }
+  .title { margin: 0; font-size: 1rem; }
+  .nav-links { width: auto; flex: 1; flex-direction: row; justify-content: center; gap: 2px; }
+  .nav-item { width: auto; padding: 8px 6px; font-size: .78rem; white-space: nowrap; }
+  .logout-btn { width: auto; margin: 0; padding: 8px; }
+  .logout-btn svg { width: 24px; height: 24px; }
+  .content { width: 100%; min-width: 0; margin: 0; padding: 82px 12px 90px; box-sizing: border-box; }
+  .posts-container { width: 100%; max-width: 500px; }
+  .modal { width: calc(100vw - 24px); box-sizing: border-box; }
+  .page-heading { align-items: flex-start; margin-bottom: 18px; }
+  .page-heading h1 { font-size: 25px; }
+  .page-description { max-width: 260px; font-size: 11px; line-height: 1.5; }
+  .primary-action { width: 40px; min-width: 40px; justify-content: center; padding: 0; font-size: 20px; }
+  .primary-action span { display: none; }
+  .quick-composer { min-height: 60px; padding: 10px; }
+  .quick-composer img { width: 36px; height: 36px; flex-basis: 36px; }
+  .feed-column { gap: 11px; }
+  .post-card { padding: 13px; }
+  .post-community-label { display: none; }
+  .add-comment { flex-wrap: wrap; }
+  .add-comment input { flex: 1 1 180px; }
+}
+
+@media (min-width: 701px) and (max-width: 900px) {
+  .content { padding: 32px 24px; }
+  .posts-container { width: min(100%, 500px); }
 }
 </style>
 

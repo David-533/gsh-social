@@ -1,87 +1,9 @@
 <template>
-  <div class="neon-background">
-    <nav class="navbar">
-      <div class="title">SIO SOCIAL</div>
-    </nav>
-
-    <form class="register-form" @submit="handleRegister">
-      <h2 class="form-title">Créer un compte</h2>
-
-      <label for="pseudo">PSEUDO</label>
-      <input type="text" id="pseudo" v-model="pseudo" placeholder="pseudo_hj" autocomplete="off" />
-
-      <label for="email">EMAIL</label>
-      <input type="email" id="email" v-model="email" placeholder="exemple@mail.com" />
-
-      <label for="password">MOT DE PASSE</label>
-      <input type="password" id="password" v-model="password" placeholder="••••••••" />
-
-      <label for="confirm">CONFIRMER LE MOT DE PASSE</label>
-      <input type="password" id="confirm" v-model="confirm" placeholder="••••••••" />
-
-      <div class="error-message" v-if="error">{{ error }}</div>
-
-      <button type="submit">S'inscrire</button>
-      <button type="button" @click="goToLogin">Retour</button>
-    </form>
-  </div>
+  <AuthScreen mode="register" />
 </template>
 
-<script>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
-
-export default {
-  setup() {
-    const router = useRouter();
-
-    const pseudo = ref("");
-    const email = ref("");
-    const password = ref("");
-    const confirm = ref("");
-    const error = ref("");
-
-    /**
-     * Gère l'inscription d'un nouvel utilisateur
-     * Vérifie les données et les stocke dans localStorage
-     * @param {Event} e - Événement de submission du formulaire
-     */
-    const handleRegister = (e) => {
-      e.preventDefault();
-
-      // Vérifie que tous les champs sont remplis
-      if (!pseudo.value || !email.value || !password.value || !confirm.value) {
-        error.value = "Veuillez remplir tous les champs.";
-        return;
-      }
-
-      // Vérifie que les deux mots de passe correspondent
-      if (password.value !== confirm.value) {
-        error.value = "Les mots de passe ne correspondent pas.";
-        return;
-      }
-
-      // Efface toutes les données existantes dans localStorage (ancien utilisateur)
-      localStorage.clear();
-
-      // Crée le nouvel utilisateur avec les données saisies
-      const newUser = { pseudo: pseudo.value, email: email.value, password: password.value };
-      localStorage.setItem("user", JSON.stringify(newUser));
-
-      // Message de confirmation
-      alert(`Compte créé pour ${pseudo.value} !`);
-      // Redirige vers la page de connexion
-      router.push("/");
-    };
-
-    /**
-     * Redirige l'utilisateur vers la page de connexion
-     */
-    const goToLogin = () => router.push("/");
-
-    return { pseudo, email, password, confirm, error, handleRegister, goToLogin };
-  },
-};
+<script setup>
+import AuthScreen from "./AuthScreen.vue";
 </script>
 
 

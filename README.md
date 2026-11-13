@@ -27,3 +27,7 @@ npm run dev
 ```sh
 npm run build
 ```
+
+## Connexion Google avec Firebase
+
+La connexion utilise Firebase Authentication. Dans Firebase Console, ouvre **Authentication** → **Méthodes de connexion**, active **Google**, puis ajoute `localhost` aux domaines autorisés. Les variables de configuration Web sont dans `.env.local` pour le développement local. Pour publier le frontend, configure les mêmes variables `VITE_FIREBASE_*` dans l’environnement de build.

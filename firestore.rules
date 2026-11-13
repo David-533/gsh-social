@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function authorOrFollower(authorId) {
+      return signedIn() && (authorId == request.auth.uid
+        || exists(/databases/$(database)/documents/users/$(authorId)/followers/$(request.auth.uid)));
+    }
+
+    function canReadPost(postId) {
+      let post = get(/databases/$(database)/documents/posts/$(postId)).data;
+      return signedIn() && (post.surface == 'feed' || authorOrFollower(post.authorId));
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if owns(uid)
+        && request.resource.data.keys().hasOnly([
+          'pseudo', 'usernameLower', 'email', 'photo', 'bio', 'createdAt', 'updatedAt'
+        ])
+        && request.resource.data.pseudo is string
+        && request.resource.data.pseudo.size() >= 3
+        && request.resource.data.pseudo.size() <= 32
+        && request.resource.data.usernameLower is string
+        && request.resource.data.photo is string
+        && request.resource.data.photo.size() <= 300000
+        && request.resource.data.email == request.auth.token.email;
+      allow delete: if owns(uid);
+
+      match /following/{targetUid} {
+        allow read: if signedIn();
+        allow create: if owns(uid) && targetUid != uid
+          && request.resource.data.uid == targetUid;
+        allow delete: if owns(uid);
+      }
+
+      match /followers/{followerUid} {
+        allow read: if signedIn();
+        allow create: if signedIn() && followerUid == request.auth.uid
+          && request.resource.data.uid == followerUid;
+        allow delete: if signedIn() && followerUid == request.auth.uid;
+      }
+    }
+
+    match /usernameReservations/{usernameKey} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.usernameLower is string;
+      allow update, delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    match /posts/{postId} {
+      allow read: if signedIn() && (resource.data.surface == 'feed' || authorOrFollower(resource.data.authorId));
+      allow create: if signedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 5000
+        && request.resource.data.mediaUrl.size() <= 700000
+        && request.resource.data.surface in ['feed', 'profile']
+        && request.resource.data.keys().hasOnly([
+          'authorId', 'authorName', 'authorPhoto', 'text', 'mediaUrl', 'mediaType', 'mediaPath', 'surface', 'createdAt'
+        ]);
+      allow update, delete: if signedIn() && resource.data.authorId == request.auth.uid;
+
+      match /likes/{uid} {
+        allow read: if canReadPost(postId);
+        allow create: if canReadPost(postId) && owns(uid) && request.resource.data.uid == request.auth.uid
+          && !exists(/databases/$(database)/documents/posts/$(postId)/likes/$(uid));
+        allow delete: if owns(uid);
+        allow update: if false;
+      }
+
+      match /comments/{commentId} {
+        allow read: if canReadPost(postId);
+        allow create: if canReadPost(postId)
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.authorName is string
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+        allow update: if false;
+        allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+      }
+
+      match /views/{uid} {
+        allow read: if owns(uid) || (signedIn()
+          && get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid);
+        allow create: if owns(uid)
+          && canReadPost(postId)
+          && get(/databases/$(database)/documents/posts/$(postId)).data.authorId != request.auth.uid
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['uid', 'viewedAt'])
+          && !exists(/databases/$(database)/documents/posts/$(postId)/views/$(uid));
+        allow update, delete: if false;
+      }
+    }
+  }
+}

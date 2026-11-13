@@ -1,793 +1,452 @@
 <template>
-  <div class="page-container">
-    <!-- Navbar -->
-    <nav class="navbar">
-      <div class="title">SOCIAL</div>
-      <div class="nav-links">
-        <router-link to="/home" class="nav-item">Accueil</router-link>
-        <router-link to="/profil" class="nav-item">Profile</router-link>
-        <router-link to="/messages" class="nav-item">Messages</router-link>
-      </div>
-      <button class="logout-btn" @click="handleLogout">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 24 24">
-          <path d="M10 17v-3H3v-4h7V7l5 5-5 5zM20 3h-8v2h8v14h-8v2h8c1.1 0 2-0.9 2-2V5c0-1.1-0.9-2-2-2z"/>
-        </svg>
-      </button>
-    </nav>
-
-    <!-- Contenu -->
-    <div class="content">
-      <!-- Profile header -->
-      <div class="profile-header">
-        <img class="profile-pic" :src="userPhoto || defaultPhoto" alt="">
-        <div class="user-info">
-          <h1>{{ userPseudo || "Pseudo" }}</h1>
-          <div class="stats">
-            <div class="stat-item">
-              <strong>{{ posts.length }}</strong>
-              <span>Publications</span>
-            </div>
-            <div class="stat-item">
-              <strong>{{ followers }}</strong>
-              <span>Abonnés</span>
-            </div>
-            <div class="stat-item">
-              <strong>{{ following }}</strong>
-              <span>Suivis</span>
-            </div>
-          </div>
-          <p class="user-bio">{{ userBio || 'Aucune bio renseignée pour le moment.' }}</p>
-          <button class="edit-btn" @click="goToModifierProfil">Modifier le profil</button>
-        </div>
-      </div>
-
-      <!-- Galerie -->
-      <div class="underline-wrapper">
-        <div class="underline"></div>
-        <div class="posts-gallery">
-          <div v-for="(post, index) in posts" :key="index" class="post-container">
-            <img :src="post" class="post-image" @click="openModal(index)" />
+  <main class="social-page profile-page">
+    <header class="profile-cover">
+      <div class="cover-art"><span>TON ESPACE</span></div>
+      <section class="profile-summary">
+        <img class="profile-avatar" :src="profile.photo || defaultPhoto" :alt="`Photo de ${profile.pseudo}`" />
+        <div class="profile-identity">
+          <p class="page-eyebrow">{{ isOwnProfile ? "MON PROFIL" : "PROFIL COMMUNAUTAIRE" }}</p>
+          <h1>{{ profile.pseudo }}</h1>
+          <p v-if="isOwnProfile" class="profile-email">{{ profile.email || userStore.user?.email }}</p>
+          <p class="profile-bio">{{ profile.bio || "Ajoute une bio pour te présenter à ta communauté." }}</p>
+          <div class="profile-social-stats">
+            <span><strong>{{ mediaItems.length }}</strong> publications</span>
+            <span><strong>{{ followCounts.followers }}</strong> abonnés</span>
+            <span><strong>{{ followCounts.following }}</strong> suivis</span>
           </div>
         </div>
+        <RouterLink v-if="isOwnProfile" class="edit-profile-action" to="/modifier-profil">Modifier le profil</RouterLink>
+        <button v-else class="add-media-action" type="button" :class="{ following: isFollowing(displayedAccountId) }" @click="toggleFollow(displayedAccountId)">
+          {{ isFollowing(displayedAccountId) ? "Abonné" : "Suivre" }}
+        </button>
+      </section>
+    </header>
+
+    <section class="profile-publications">
+      <header class="profile-section-heading">
+        <div><p class="page-eyebrow">{{ isOwnProfile ? "TES PUBLICATIONS" : `PUBLICATIONS DE ${profile.pseudo.toUpperCase()}` }}</p><h2>Photos et vidéos <span>{{ mediaItems.length }}</span></h2></div>
+        <button v-if="isOwnProfile" class="add-media-action" type="button" :disabled="isUploading" @click="fileInput?.click()">{{ isUploading ? "Envoi…" : "＋ Ajouter une publication" }}</button>
+      </header>
+
+      <input v-if="isOwnProfile" ref="fileInput" class="media-input" type="file" accept="image/*,video/*" @change="handleMediaUpload" />
+      <p v-if="mediaError" class="media-error" role="alert">{{ mediaError }}</p>
+      <div v-if="mediaLoading" class="profile-empty"><p>Chargement des publications…</p></div>
+
+      <div v-else-if="!mediaItems.length" class="profile-empty">
+        <span class="empty-mark" aria-hidden="true">▧</span>
+        <h3>{{ !isOwnProfile && !following ? "Publications réservées aux abonnés" : "Aucune publication pour le moment" }}</h3>
+        <p>{{ !isOwnProfile && !following ? `Suis ${profile.pseudo} pour voir ses publications.` : isOwnProfile ? "Ajoute ici tes photos et vidéos préférées." : "Ce membre n’a pas encore publié de photo ou de vidéo." }}</p>
       </div>
 
-      <input type="file" ref="postInput" accept="image/*" @change="handlePostFileChange" style="display:none;">
-    </div>
+      <div v-else class="profile-media-grid">
+        <button v-for="item in mediaItems" :key="item.id" class="media-tile" type="button" :aria-label="`Ouvrir le ${item.type === 'video' ? 'vidéo' : 'photo'} du ${formatMediaDate(item.createdAt)}`" @click="selectMedia(item)">
+          <img v-if="item.type === 'image'" :src="item.mediaUrl" alt="Photo de la galerie" />
+          <video v-else :src="item.mediaUrl" muted playsinline preload="metadata"></video>
+          <span v-if="item.type === 'video'" class="video-indicator" aria-label="Vidéo">▶</span>
+          <span v-if="isOwnProfile" class="view-count" :aria-label="`${item.viewCount || 0} vues`" title="Vues">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+            {{ item.viewCount || 0 }}
+          </span>
+        </button>
+      </div>
+    </section>
 
-    <div class="add-post-container">
-      <button class="add-post-btn" @click="triggerPostInput">+</button>
-    </div>
+    <section v-if="isOwnProfile && otherMembers.length" class="community-section">
+      <header class="profile-section-heading">
+        <div><p class="page-eyebrow">FAIRE GRANDIR TON CERCLE</p><h2>Membres <span>{{ otherMembers.length }}</span></h2></div>
+      </header>
+      <div class="community-list">
+        <article v-for="member in otherMembers" :key="member.id" class="community-member">
+          <RouterLink class="community-member-profile" :to="`/profil/${encodeURIComponent(member.id)}`">
+            <img :src="member.photo || defaultPhoto" :alt="`Photo de ${member.pseudo}`" />
+            <div><strong>{{ member.pseudo }}</strong><span>{{ member.bio || "Membre de la communauté" }}</span></div>
+          </RouterLink>
+          <button type="button" :class="{ following: isFollowing(member.id) }" @click="toggleFollow(member.id)">
+            {{ isFollowing(member.id) ? "Abonné" : "Suivre" }}
+          </button>
+        </article>
+      </div>
+    </section>
 
-    <!-- Modal -->
-    <div v-if="modalOpen" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-content">
-        <div class="modal-left">
-          <img :src="posts[modalIndex]" class="modal-image" />
+    <div v-if="selectedMedia" class="media-viewer" role="dialog" aria-modal="true" aria-label="Aperçu de la publication" @click.self="selectedMedia = null">
+      <div class="media-viewer-panel">
+        <button class="media-viewer-close" type="button" aria-label="Fermer l’aperçu" @click="selectedMedia = null">×</button>
+        <div class="viewer-media">
+          <img v-if="selectedMedia.type === 'image'" :src="selectedMedia.mediaUrl" alt="Photo agrandie" />
+          <video v-else :src="selectedMedia.mediaUrl" controls autoplay playsinline></video>
         </div>
-        <div class="modal-right">
-          <div class="comments-header">
-            <h3>Commentaires</h3>
-
-            <!-- Bouton 3 points -->
-            <button class="menu-btn" @click="toggleOptionsMenu">
-              <svg xmlns="http://www.w3.org/2000/svg" class="menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 12h.01M12 12h.01M18 12h.01"/>
-              </svg>
+        <aside class="viewer-details">
+          <header class="viewer-author">
+            <img :src="selectedMedia.authorPhoto || defaultPhoto" :alt="`Photo de ${selectedMedia.authorName}`" />
+            <div><strong>{{ selectedMedia.authorName || profile.pseudo }}</strong><span>{{ formatMediaDate(selectedMedia.createdAt) }}</span></div>
+          </header>
+          <div class="viewer-comments">
+            <p v-if="!selectedMedia.comments?.length" class="no-comments">Pas encore de commentaire. Lance la conversation.</p>
+            <article v-for="comment in selectedMedia.comments || []" :key="comment.id" class="viewer-comment">
+              <img :src="comment.authorPhoto || defaultPhoto" :alt="`Photo de ${comment.authorName}`" />
+              <p><strong>{{ comment.authorName }}</strong> {{ comment.text }}</p>
+            </article>
+          </div>
+          <div class="viewer-actions">
+            <button type="button" class="media-like" :class="{ liked: selectedMedia.liked }" :aria-pressed="selectedMedia.liked" @click="toggleMediaLike(selectedMedia)">
+              <span aria-hidden="true">{{ isMediaLiked(selectedMedia) ? "♥" : "♡" }}</span>
+              {{ selectedMedia.likeCount || 0 }} J’aime
             </button>
-
-            <!-- Menu déroulant -->
-            <div v-if="optionsMenuOpen" class="options-menu">
-              <button @click="deletePost(modalIndex)" class="menu-item delete">Supprimer</button>
-              <button @click="closeOptionsMenu" class="menu-item cancel">Annuler</button>
-            </div>
+            <form class="media-comment-form" @submit.prevent="submitMediaComment">
+              <input v-model="newMediaComment" type="text" aria-label="Écrire un commentaire" placeholder="Ajouter un commentaire…" maxlength="300" />
+              <button type="submit" :disabled="!newMediaComment.trim()">Envoyer</button>
+            </form>
+            <button v-if="isOwnProfile && selectedMedia.authorId === currentUid" class="delete-media" type="button" @click="removeMedia(selectedMedia)">Supprimer cette publication</button>
           </div>
-
-          <div class="comments-list">
-            <div v-for="(comment, idx) in comments[modalIndex] || []" :key="idx" class="comment">
-              <div class="comment-top">
-                <img class="comment-avatar" :src="userPhoto || defaultPhoto" />
-                <strong class="comment-pseudo">{{ userPseudo || 'Pseudo' }}</strong>
-              </div>
-              <div class="comment-text">{{ comment }}</div>
-            </div>
-          </div>
-
-          <div class="add-comment">
-            <textarea v-model="newComment" placeholder="Ajouter un commentaire..."></textarea>
-            <button @click="addComment(modalIndex)" class="send-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" class="send-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10l9-9m0 0l9 9m-9-9v18"/>
-              </svg>
-            </button>
-          </div>
-
-          <div class="post-actions">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              class="icon heart" :class="{ liked: isLiked }" @click="toggleLike">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.636l1.318-1.318a4.5 4.5 0 116.364 6.364L12 21.364l-7.682-7.682a4.5 4.5 0 010-6.364z"/>
-            </svg>
-          </div>
-        </div>
+        </aside>
       </div>
     </div>
-  </div>
+  </main>
 </template>
 
-<script>
-/**
- * Composant Profil - Affiche le profil utilisateur avec la galerie de posts
- * Permet d’ajouter des posts, de commenter et de liker
- */
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+<script setup>
+import { computed, onUnmounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
+import { DEFAULT_PROFILE_PHOTO, useUserStore } from "../stores/userStore";
+import {
+  addPostComment,
+  createPost,
+  deletePost,
+  subscribeFollowCounts,
+  subscribeFollowState,
+  subscribeMembers,
+  subscribePostComments,
+  subscribePostLikes,
+  subscribePostViews,
+  recordPostView,
+  subscribeUserPosts,
+  subscribeUserProfile,
+  toggleFollow as toggleRemoteFollow,
+  togglePostLike,
+} from "../services/socialService";
 
-export default {
-  name: "Profil",
-  setup() {
-    const router = useRouter();
+const userStore = useUserStore();
+const route = useRoute();
+const currentUser = userStore.user;
+const currentUid = currentUser.uid;
+const defaultPhoto = DEFAULT_PROFILE_PHOTO;
+const fileInput = ref(null);
+const profile = ref(userStore.getProfile());
+const mediaItems = ref([]);
+const selectedMedia = ref(null);
+const mediaError = ref("");
+const newMediaComment = ref("");
+const followCounts = ref({ followers: 0, following: 0 });
+const following = ref(false);
+const otherMembers = ref([]);
+const mediaLoading = ref(true);
+const isUploading = ref(false);
+const displayedAccountId = computed(() => String(route.params.memberId || currentUid));
+const isOwnProfile = computed(() => displayedAccountId.value === currentUid);
 
-    // State du profil utilisateur
-    const userPseudo = ref(localStorage.getItem("userPseudo") || "");
-    const userPhoto = ref(localStorage.getItem("userPhoto") || null);
-    const userBio = ref(localStorage.getItem("userBio") || "");
-    const userGender = ref(localStorage.getItem("userGender") || "");
-    const postInput = ref(null);
-    const defaultPhoto = "https://via.placeholder.com/150";
-    const followers = ref(parseInt(localStorage.getItem("userFollowers") || "0"));
-    const following = ref(parseInt(localStorage.getItem("userFollowing") || "0"));
+let profileUnsubscribe;
+let postsUnsubscribe;
+let countsUnsubscribe;
+let followUnsubscribe;
+let membersUnsubscribe;
+let selectedLikesUnsubscribe;
+let selectedCommentsUnsubscribe;
+const viewSubscriptions = new Map();
 
-    // State des posts et commentaires
-    const posts = ref([]);
-    const comments = ref([]);
-    const newComment = ref("");
+const stopViewSubscriptions = () => {
+  viewSubscriptions.forEach(unsubscribe => unsubscribe());
+  viewSubscriptions.clear();
+};
 
-    // State pour la modal
-    const modalOpen = ref(false);
-    const modalIndex = ref(0);
-    const isLiked = ref(false);
-    const optionsMenuOpen = ref(false);
+function handleCloudError(error) {
+  console.error("Firebase profil error", error);
+  mediaError.value = error.message === "cloudinary-not-configured"
+    ? "Les vidéos demandent Cloudinary (voir .env.local). Les photos fonctionnent sans."
+    : error.code === "permission-denied"
+    ? "Déploie les règles Firebase pour autoriser cette action."
+    : "Les données du profil n’ont pas pu être chargées. Vérifie la configuration Firebase.";
+}
 
-    /**
-     * Charge les données du profil au montage du composant
-     */
-    onMounted(() => {
-      posts.value = JSON.parse(localStorage.getItem("userPosts") || "[]");
-      comments.value = JSON.parse(localStorage.getItem("userComments") || "[]");
-      isLiked.value = JSON.parse(localStorage.getItem("isLiked") || "false");
-    });
+const updateMedia = (mediaId, changes) => {
+  mediaItems.value = mediaItems.value.map(item => item.id === mediaId ? { ...item, ...changes } : item);
+  if (selectedMedia.value?.id === mediaId) selectedMedia.value = { ...selectedMedia.value, ...changes };
+};
 
-    /**
-     * Gère la déconnexion de l’utilisateur
-     * Sauvegarde les donnees du profil avant de rediriger vers le login
-     */
-    const handleLogout = () => {
-      localStorage.setItem("userPseudo", userPseudo.value);
-      localStorage.setItem("userBio", userBio.value);
-      localStorage.setItem("userPhoto", userPhoto.value);
-      localStorage.removeItem("authToken");
-      router.push("/login");
-    };
+watch(displayedAccountId, (uid, previousUid, onCleanup) => {
+  profileUnsubscribe?.();
+  postsUnsubscribe?.();
+  countsUnsubscribe?.();
+  followUnsubscribe?.();
+  selectedLikesUnsubscribe?.();
+  selectedCommentsUnsubscribe?.();
+  stopViewSubscriptions();
+  selectedMedia.value = null;
+  mediaItems.value = [];
+  mediaLoading.value = true;
+  mediaError.value = "";
 
-    /**
-     * Redirige vers la page de modification du profil
-     */
-    const goToModifierProfil = () => {
-      router.push("/modifier-profil");
-    };
+  profileUnsubscribe = subscribeUserProfile(uid, result => {
+    if (result) profile.value = result;
+    else mediaError.value = "Ce profil est introuvable.";
+  }, handleCloudError);
 
-    /**
-     * Déclenche l’input file caché pour l’ajout de post
-     */
-    const triggerPostInput = () => postInput.value.click();
-
-    /**
-     * Gère le téléchargement d’une image de post
-     * Rédimensionne l’image si elle dépasse 2500px
-     * Comprime en JPEG 98% de qualité (très haute qualité)
-     * @param {Event} e - L’événement du changement de fichier
-     */
-    const handlePostFileChange = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-
-      reader.onload = (event) => {
-        const img = new Image();
-
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-
-          let width = img.width;
-          let height = img.height;
-
-          // Seulement redimensionne si l’image est vraiment énorme (> 2500px)
-          const maxSize = 2500;
-
-          if (width > maxSize || height > maxSize) {
-            const ratio = Math.min(maxSize / width, maxSize / height);
-            width = width * ratio;
-            height = height * ratio;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Compression très haute qualité (98%) pour minimiser la perte
-          const finalImage = canvas.toDataURL("image/jpeg", 0.98);
-
-          // Ajoute le post à la galerie
-          posts.value.push(finalImage);
-
-          // Sauvegarde dans localStorage
-          localStorage.setItem("userPosts", JSON.stringify(posts.value));
-        };
-
-        img.src = event.target.result;
-      };
-
-      reader.readAsDataURL(file);
-    };
-
-    /**
-     * Ouvre la modal d’affichage du post
-     * @param {number} index - L’indice du post à afficher
-     */
-    const openModal = index => {
-      modalIndex.value = index;
-      modalOpen.value = true;
-    };
-
-    /**
-     * Ferme la modal d’affichage
-     */
-    const closeModal = () => modalOpen.value = false;
-
-    /**
-     * Bascule le menu des options (3 points)
-     */
-    const toggleOptionsMenu = () => {
-      optionsMenuOpen.value = !optionsMenuOpen.value;
-    };
-
-    /**
-     * Ferme le menu des options
-     */
-    const closeOptionsMenu = () => {
-      optionsMenuOpen.value = false;
-    };
-
-    /**
-     * Supprime un post après confirmation
-     * @param {number} index - L’indice du post à supprimer
-     */
-    const deletePost = (index) => {
-      if (confirm("Voulez-vous vraiment supprimer cette publication ?")) {
-        posts.value.splice(index, 1);
-        localStorage.setItem("userPosts", JSON.stringify(posts.value));
-        closeModal();
+  const loadPosts = () => {
+    postsUnsubscribe?.();
+    postsUnsubscribe = null;
+    mediaItems.value = [];
+    if (!isOwnProfile.value && !following.value) {
+      mediaLoading.value = false;
+      return;
+    }
+    mediaLoading.value = true;
+    postsUnsubscribe = subscribeUserPosts(uid, posts => {
+      mediaItems.value = posts.filter(post => post.mediaUrl && post.surface !== "feed").map(post => ({
+        ...post,
+        type: post.mediaType || "image",
+        likeCount: 0,
+        liked: false,
+        comments: [],
+      }));
+      const activePostIds = new Set(mediaItems.value.map(item => item.id));
+      for (const [postId, unsubscribe] of viewSubscriptions) {
+        if (activePostIds.has(postId)) continue;
+        unsubscribe();
+        viewSubscriptions.delete(postId);
       }
-      closeOptionsMenu();
-    };
+      if (isOwnProfile.value) {
+        mediaItems.value.forEach(item => {
+          if (viewSubscriptions.has(item.id)) return;
+          viewSubscriptions.set(item.id, subscribePostViews(item.id, viewCount => {
+            updateMedia(item.id, { viewCount });
+          }, handleCloudError));
+        });
+      }
+      mediaLoading.value = false;
+    }, error => {
+      mediaLoading.value = false;
+      handleCloudError(error);
+    });
+  };
 
-    /**
-     * Ajoute un commentaire à un post
-     * @param {number} index - L’indice du post auquel ajouter un commentaire
-     */
-    const addComment = index => {
-      if (!newComment.value.trim()) return;
-      if (!comments.value[index]) comments.value[index] = [];
-      comments.value[index].push(newComment.value);
-      newComment.value = "";
-      localStorage.setItem("userComments", JSON.stringify(comments.value));
-    };
+  countsUnsubscribe = subscribeFollowCounts(uid, (kind, count) => {
+    followCounts.value = { ...followCounts.value, [kind]: count };
+  }, handleCloudError);
 
-    /**
-     * Bascule le like d’un post
-     */
-    const toggleLike = () => {
-      isLiked.value = !isLiked.value;
-      localStorage.setItem("isLiked", JSON.stringify(isLiked.value));
-    };
+  if (!isOwnProfile.value) {
+    followUnsubscribe = subscribeFollowState(currentUid, uid, value => {
+      following.value = value;
+      loadPosts();
+    }, handleCloudError);
+  } else {
+    following.value = false;
+    loadPosts();
+  }
 
-    return {
-      userPseudo,
-      userPhoto,
-      userBio,
-      defaultPhoto,
-      postInput,
-      posts,
-      comments,
-      newComment,
-      modalOpen,
-      modalIndex,
-      handleLogout,
-      triggerPostInput,
-      handlePostFileChange,
-      openModal,
-      closeModal,
-      addComment,
-      isLiked,
-      toggleLike,
-      goToModifierProfil,
-      followers,
-      following,
-      toggleOptionsMenu,
-      closeOptionsMenu,
-      optionsMenuOpen,
-      deletePost
-    };
+  onCleanup(() => {
+    profileUnsubscribe?.();
+    postsUnsubscribe?.();
+    countsUnsubscribe?.();
+    followUnsubscribe?.();
+    selectedLikesUnsubscribe?.();
+    selectedCommentsUnsubscribe?.();
+  });
+}, { immediate: true });
+
+membersUnsubscribe = subscribeMembers(members => {
+  otherMembers.value = members.filter(member => member.id !== currentUid);
+}, handleCloudError);
+
+onUnmounted(() => {
+  profileUnsubscribe?.();
+  postsUnsubscribe?.();
+  countsUnsubscribe?.();
+  followUnsubscribe?.();
+  membersUnsubscribe?.();
+  selectedLikesUnsubscribe?.();
+  selectedCommentsUnsubscribe?.();
+  stopViewSubscriptions();
+});
+
+const formatMediaDate = value => {
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? "À l’instant" : new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(date);
+};
+
+const handleMediaUpload = async event => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  mediaError.value = "";
+  if (!file || !isOwnProfile.value) return;
+  const isImage = file.type.startsWith("image/");
+  const isVideo = file.type.startsWith("video/");
+  if (!isImage && !isVideo) {
+    mediaError.value = "Choisis une image ou une vidéo.";
+    return;
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    mediaError.value = "La photo ou vidéo doit faire 25 Mo maximum.";
+    return;
+  }
+  isUploading.value = true;
+  try {
+    await createPost({ user: { ...currentUser, ...profile.value }, text: "", file, surface: "profile" });
+  } catch (error) {
+    handleCloudError(error);
+  } finally {
+    isUploading.value = false;
+  }
+};
+
+const isMediaLiked = media => Boolean(media.liked);
+
+const selectMedia = media => {
+  selectedLikesUnsubscribe?.();
+  selectedCommentsUnsubscribe?.();
+  selectedMedia.value = media;
+  recordPostView(media.id, currentUid, media.authorId).catch(handleCloudError);
+  selectedLikesUnsubscribe = subscribePostLikes(media.id, currentUid, state => updateMedia(media.id, state), handleCloudError);
+  selectedCommentsUnsubscribe = subscribePostComments(media.id, comments => updateMedia(media.id, { comments }), handleCloudError);
+};
+
+const toggleMediaLike = async media => {
+  try {
+    await togglePostLike(media.id, currentUid);
+  } catch (error) {
+    handleCloudError(error);
+  }
+};
+
+const submitMediaComment = async () => {
+  const text = newMediaComment.value.trim();
+  if (!text || !selectedMedia.value) return;
+  newMediaComment.value = "";
+  try {
+    await addPostComment(selectedMedia.value.id, { ...currentUser, ...userStore.getProfile() }, text);
+  } catch (error) {
+    newMediaComment.value = text;
+    handleCloudError(error);
+  }
+};
+
+const isFollowing = memberId => memberId === displayedAccountId.value && following.value;
+
+const toggleFollow = async memberId => {
+  try {
+    await toggleRemoteFollow(currentUid, memberId);
+  } catch (error) {
+    handleCloudError(error);
+  }
+};
+
+const removeMedia = async item => {
+  if (!isOwnProfile.value || item.authorId !== currentUid) return;
+  try {
+    await deletePost(item);
+    selectedMedia.value = null;
+  } catch (error) {
+    handleCloudError(error);
   }
 };
 </script>
 
-
-
-
 <style scoped>
-.page-container {
-  display: flex;
+.profile-cover { overflow: hidden; border: 1px solid #e3e9e1; border-radius: 7px; background: #fff; }
+.cover-art { display: flex; height: 118px; align-items: flex-start; justify-content: flex-end; padding: 18px; color: rgba(255,255,255,.82); background-color: #315d49; background-image: linear-gradient(135deg, transparent 49.5%, rgba(255,255,255,.06) 50%, transparent 50.5%), linear-gradient(45deg, transparent 49.5%, rgba(255,255,255,.05) 50%, transparent 50.5%); background-size: 30px 30px; }
+.cover-art span { font-size: 9px; font-weight: 700; }
+.profile-summary { display: flex; align-items: center; gap: 20px; padding: 0 24px 23px; }
+.profile-avatar { width: 92px; height: 92px; flex: 0 0 92px; margin-top: -35px; border: 4px solid #fff; border-radius: 50%; background: #e8eee8; object-fit: cover; }
+.profile-identity { min-width: 0; flex: 1; padding-top: 12px; }
+.profile-identity .page-eyebrow, .profile-section-heading .page-eyebrow { margin: 0 0 5px; color: #69836f; font-size: 9px; font-weight: 700; }
+.profile-identity h1 { margin: 0; color: #19382f; font: 600 23px/1.2 'Space Grotesk', sans-serif; overflow-wrap: anywhere; }
+.profile-email { margin: 4px 0 0; color: #87918a; font-size: 11px; }
+.profile-bio { margin: 12px 0 0; color: #526158; font-size: 12px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+.profile-social-stats { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; color: #78857d; font-size: 10px; }
+.profile-social-stats strong { margin-right: 3px; color: #2f4538; font-size: 12px; }
+.edit-profile-action, .profile-empty-action { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid #dfe6dc; border-radius: 5px; color: #405c47; background: #fff; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.edit-profile-action:hover, .profile-empty-action:hover { background: #f3f6f1; }
+.profile-publications { margin-top: 27px; }
+.profile-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.profile-section-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: #263c31; font: 600 18px 'Space Grotesk', sans-serif; }
+.profile-section-heading h2 span { color: #869289; font: 500 11px 'DM Sans', sans-serif; }
+.add-media-action { min-height: 36px; padding: 0 12px; border: 0; border-radius: 5px; color: #19382f; background: #c9ef74; font-size: 11px; font-weight: 700; cursor: pointer; }
+.add-media-action:hover { background: #bce55e; }
+.add-media-action.following { border: 1px solid #dfe6dc; color: #526158; background: #fff; }
+.media-input { display: none; }
+.media-error { margin: 0 0 12px; color: #a9463b; font-size: 11px; }
+.profile-empty { display: grid; min-height: 230px; justify-items: center; align-content: center; padding: 24px; border: 1px dashed #cbd6ca; border-radius: 7px; background: rgba(255,255,255,.55); text-align: center; }
+.profile-empty h3 { margin: 12px 0 5px; color: #294033; font: 600 16px 'Space Grotesk', sans-serif; }
+.profile-empty p { max-width: 320px; margin: 0 0 14px; color: #78857d; font-size: 11px; line-height: 1.6; }
+.profile-media-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.media-tile { position: relative; display: block; min-width: 0; overflow: hidden; aspect-ratio: 1; padding: 0; border: 0; border-radius: 5px; background: #e7ece6; cursor: pointer; }
+.media-tile img, .media-tile video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.media-tile:hover img, .media-tile:hover video { transform: scale(1.025); }
+.media-tile img, .media-tile video { transition: transform .2s ease; }
+.view-count { position: absolute; bottom: 9px; left: 9px; display: inline-flex; align-items: center; gap: 5px; color: #fff; font-size: 11px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
+.view-count svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; filter: drop-shadow(0 1px 2px rgba(0,0,0,.9)); }
+.video-indicator { position: absolute; right: 9px; bottom: 9px; display: grid; width: 27px; height: 27px; place-items: center; border: 1px solid rgba(255,255,255,.72); border-radius: 50%; color: #fff; background: rgba(20,35,27,.68); font-size: 10px; }
+.media-viewer { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 18px; background: rgba(17,29,23,.82); }
+.media-viewer-panel { position: relative; display: grid; width: min(100%, 1120px); height: min(82svh, 760px); grid-template-columns: minmax(0, 1fr) 330px; overflow: hidden; border-radius: 7px; background: #fff; }
+.viewer-media { display: grid; min-width: 0; min-height: 0; place-items: center; background: #101411; }
+.viewer-media > img, .viewer-media > video { display: block; width: 100%; height: 100%; max-height: 82svh; object-fit: contain; }
+.viewer-details { display: flex; min-width: 0; flex-direction: column; background: #fff; }
+.viewer-author { display: flex; min-height: 63px; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid #e8ede7; }
+.viewer-author img, .viewer-comment img { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; object-fit: cover; }
+.viewer-author div { display: grid; gap: 4px; }
+.viewer-author strong { color: #2d4035; font-size: 11px; }
+.viewer-author span { color: #859087; font-size: 9px; }
+.viewer-comments { display: grid; flex: 1; align-content: start; gap: 12px; overflow: auto; padding: 14px; }
+.no-comments { margin: 0; color: #829087; font-size: 10px; line-height: 1.6; }
+.viewer-comment { display: flex; align-items: flex-start; gap: 8px; }
+.viewer-comment img { width: 28px; height: 28px; flex-basis: 28px; }
+.viewer-comment p { margin: 2px 0 0; color: #536159; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.viewer-comment strong { margin-right: 3px; color: #2f4538; }
+.viewer-actions { padding: 11px 13px 13px; border-top: 1px solid #e8ede7; }
+.media-like { display: flex; align-items: center; gap: 7px; padding: 2px 0 11px; border: 0; color: #56655c; background: none; font-size: 11px; cursor: pointer; }
+.media-like span { font-size: 20px; }
+.media-like.liked { color: #c05258; }
+.media-comment-form { display: flex; align-items: center; gap: 7px; }
+.media-comment-form input { width: 0; min-width: 0; height: 35px; flex: 1; padding: 0 9px; border: 1px solid #e1e8df; border-radius: 4px; outline: none; font: 10px 'DM Sans', sans-serif; }
+.media-comment-form input:focus { border-color: #9ab78a; }
+.media-comment-form button { padding: 8px 9px; border: 0; border-radius: 4px; color: #35523d; background: #edf4e5; font-size: 9px; font-weight: 700; cursor: pointer; }
+.media-comment-form button:disabled { opacity: .5; cursor: not-allowed; }
+.delete-media { margin-top: 10px; padding: 0; border: 0; color: #a44c43; background: none; font-size: 9px; cursor: pointer; }
+.media-viewer-close { position: absolute; top: 10px; right: 10px; z-index: 2; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.5); border-radius: 50%; color: #fff; background: rgba(17,29,23,.65); font-size: 22px; cursor: pointer; }
+.community-section { margin-top: 28px; }
+.community-list { display: grid; max-width: 680px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.community-member { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid #e4e9e3; border-radius: 5px; background: #fff; }
+.community-member > img { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; object-fit: cover; }
+.community-member-profile { display: flex; min-width: 0; flex: 1; align-items: center; gap: 9px; color: inherit; text-decoration: none; }
+.community-member-profile:hover strong { text-decoration: underline; }
+.community-member-profile > div { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.community-member strong { overflow: hidden; color: #2f4538; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.community-member span { overflow: hidden; color: #849087; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.community-member button { min-width: 69px; min-height: 30px; padding: 0 8px; border: 0; border-radius: 4px; color: #19382f; background: #c9ef74; font-size: 9px; font-weight: 700; cursor: pointer; }
+.community-member button.following { border: 1px solid #dfe6dc; color: #526158; background: #fff; }
+
+@media (max-width: 700px) {
+  .profile-summary { align-items: flex-start; flex-wrap: wrap; gap: 12px; padding: 0 14px 17px; }
+  .profile-avatar { width: 74px; height: 74px; flex-basis: 74px; margin-top: -28px; }
+  .profile-identity { flex: 1 1 calc(100% - 90px); padding-top: 6px; }
+  .profile-identity h1 { font-size: 20px; }
+  .profile-bio { margin-top: 8px; }
+  .profile-social-stats { gap: 11px; margin-top: 9px; font-size: 9px; }
+  .edit-profile-action { margin-left: auto; }
+  .profile-section-heading { align-items: flex-start; }
+  .profile-section-heading h2 { font-size: 16px; }
+  .profile-section-heading { align-items: center; }
+  .profile-section-heading h2 { font-size: 15px; }
+  .add-media-action { min-height: 34px; padding: 0 9px; font-size: 9px; white-space: nowrap; }
+  .profile-media-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .media-viewer { padding: 8px; }
+  .media-viewer-panel { width: 100%; height: min(90svh, 760px); grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(210px, 36%); }
+  .viewer-media > img, .viewer-media > video { max-height: 55svh; }
+  .viewer-details { min-height: 0; }
+  .viewer-comments { padding: 10px 12px; }
+  .community-list { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Navbar */
-.navbar {
-  width: 200px;
-  height: 100vh;
-  background-color: #000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px 0;
-  position: fixed;
-  top: 0;
-  left: 0;
-  font-family: 'Roboto', sans-serif;
+@media (min-width: 701px) and (max-width: 1100px) {
+  .profile-summary { padding-inline: 18px; }
 }
-
-.title {
-  font-size: 1.5rem;
-  color: #fff;
-  margin-bottom: 40px;
-}
-
-.nav-links {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  width: 100%;
-  align-items: center;
-}
-
-.nav-item {
-  color: #fff;
-  font-size: 1.5rem;
-  width: 100%;
-  text-align: center;
-  padding: 5px 0;
-  text-decoration: none;
-}
-
-.logout-btn {
-  background: none;
-  border: none;
-  margin-top: 600px;
-  cursor: pointer;
-  padding: 15px;
-}
-
-.logout-btn svg {
-  fill: white;
-  width: 30px;
-  height: 30px;
-}
-
-/* Content */
-.content {
-  margin-left: 200px;
-  padding: 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-}
-
-/* Profile header */
-.profile-header {
-  display: flex;
-  gap: 30px;
-  width: 100%;
-  max-width: 600px;
-}
-
-.profile-pic {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: solid black 2px;
-}
-.stats {
-  display: flex;
-  justify-content: center;
-  gap: 15px; /* ✅ Espace horizontal entre chaque bloc */
-  margin-top: 15px;
-}
-
-.stat-item {
-  text-align: center;
-  min-width: 80px; /* ✅ Garde chaque élément bien espacé même sur petits écrans */
-}
-
-.stat-item strong {
-  display: block;
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 4px; /* ✅ Petit espace entre le chiffre et le texte */
-}
-
-.stat-item span {
-  font-size: 14px;
-  color: black;
-}
-
-
-
-.edit-btn {
-  padding: 8px 16px;
-  border: 1px solid #ccc;
-  background: #fff;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease; /* transition douce */
-}
-
-.edit-btn:hover {
-  background-color: #f0f0f0; /* léger hover */
-}
-
-.edit-btn:active {
-  transform: scale(0.95); /* effet “pression” */
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); /* légère ombre intérieure */
-}
-
-
-/* Underline + posts */
-.underline-wrapper {
-  width: 100%;
-  max-width: 800px;
-  margin: 40px auto 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.underline {
-  width: 100%;
-  height: 2px;
-  background-color: black;
-  margin-bottom: 20px;
-}
-
-.posts-gallery {
-  display: grid;
-  grid-template-columns: repeat(3, 260px);
-  gap: 10px;
-}
-
-.post-container {
-  position: relative;
-  width: 260px;
-  height: 260px;
-  overflow: hidden;
-  border-radius: 6px;
-  cursor: pointer;
-  background: none; /* retire tout fond inutile */
-  border: none; /* enlève toute bordure résiduelle */
-  padding: 0;
-  margin: 0;
-}
-
-.post-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block; /* élimine les petits espaces sous l’image */
-  border: none;
-  border-radius: 6px;
-}
-
-/* Overlay sombre */
-.post-container::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0);
-  transition: background-color 0.3s ease;
-  border-radius: 6px;
-  pointer-events: none; /* pour ne pas bloquer le clic */
-}
-
-.post-container:hover::after {
-  background-color: rgba(0, 0, 0, 0.4);
-}
-
-
-/* + button */
-.add-post-container {
-  position: fixed;
-  bottom: 80px;
-  left: calc(50% + 100px);
-  transform: translateX(-50%);
-}
-
-.add-post-btn {
-  width: 70px;
-  height: 70px;
-  font-size: 40px;
-  border-radius: 50%;
-  border: 1px solid #ccc;
-  background: #f0f0f0;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  display: flex;
-  width: 85vw;           /* largeur totale augmentée */
-  max-width: 1300px;     /* plus grand sur grands écrans */
-  height: 85vh;          /* plus haut */
-  background-color: #fff;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-/* L’image prend plus d’espace (≈ 70%) */
-.modal-left {
-  flex: 0 0 70%;
-  background-color: black;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-}
-
-.modal-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 0; /* supprime le léger arrondi qui pouvait créer un espace */
-}
-
-/* La colonne de commentaires est plus étroite (≈ 30%) */
-.modal-right {
-  flex: 0 0 30%;
-  background-color: #fff;
-  display: flex;
-  flex-direction: column;
-  padding: 15px;
-}
-
-
-
-.comments-header {
-  position: relative; /* obligatoire pour que le menu absolu soit relatif à ce parent */
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 5px;
-  margin-bottom: 5px;
-}
-
-/* Bouton 3 points */
-.menu-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  
-}
-
-.menu-icon {
-  width: 24px;
-  height: 24px;
-  color: #000;
-  margin-left: -80px; /* décale le bouton vers la gauche */
-}
-
-.options-menu {
-  position: absolute;
-  top: 35px;           /* distance verticale depuis le bouton */
-  right: 0;            /* point d’ancrage horizontal */
-  transform: translateX(-20px); /* décalage vers la gauche de 20px */
-  background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  width: 120px;
-}
-
-
-.menu-item {
-  padding: 10px;
-  text-align: left;
-  font-size: 0.9rem;
-  background: white;
-  border: none;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.menu-item:hover {
-  background-color: #f2f2f2;
-}
-
-.menu-item.delete {
-  color: red;
-  font-weight: 600;
-  font-family: Roboto, sans-serif;
-}
-
-.menu-item.cancel {
-  color: #000;
-  font-family: Roboto, sans-serif;
-}
-
-.comments-list {
-  flex: 1;
-  overflow-y: auto;
-  margin-bottom: 10px; /* espace avant le champ de saisie */
-}
-
-.comment {
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.comment-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.comment-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.comment-pseudo {
-  font-size: 0.85rem;
-}
-
-.comment-text {
-  margin-left: 32px; /* laisse de l'espace pour l'avatar */
-  font-size: 0.9rem;
-}
-
-.add-comment {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 12px;
-  border-top: 1px solid #ddd; /* fine séparation */
-  background-color: #fff;      /* fond blanc net */
-  position: sticky;
-  bottom: 0;
-  box-sizing: border-box;
-}
-
-/* Champ de saisie type barre */
-.add-comment textarea {
-  flex: 1;
-  border: none;
-  outline: none;
-  padding: 8px 10px;
-  font-size: 0.9rem;
-  background: none;
-  border-radius: 0;
-  font-family: 'Roboto', sans-serif; /* <-- même police que le reste */
-  resize: none;       /* empêche le redimensionnement */
-  overflow-y: auto;   /* permet le scroll vertical si le texte est trop long */
-  min-height: 24px;   /* hauteur minimale */
-  max-height: 80px;   /* limite la hauteur pour garder l'UI propre */
-}
-
-
-/* Supprime complètement la bulle arrondie */
-.add-comment input {
-  border-radius: 0;
-}
-
-/* Bouton envoyer simple */
-.send-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 10px;
-}
-
-.send-icon {
-  width: 20px;
-  height: 20px;
-  color: #000;
-}
-
-.comments-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 5px;
-  margin-bottom: 5px;
-  position: relative;
-}
-
-.post-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 12px;
-  border-top: 1px solid #ddd;
-  background-color: #fff;
-}
-
-.icon {
-  width: 24px;
-  height: 24px;
-  color: #000;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.icon:hover {
-  transform: scale(1.1);
-}
-
-.heart {
-  stroke: #000;
-  fill: transparent;
-  transition: all 0.3s ease;
-}
-
-.heart.liked {
-  stroke: #e0245e; /* rouge Instagram */
-  fill: #e0245e;
-  transform: scale(1.15);
-}
-
-.user-bio {
-  white-space: pre-line; /* garde les sauts de ligne de la bio */
-}
-
 
 </style>

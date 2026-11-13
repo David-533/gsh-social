@@ -1,8 +1,13 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { useRoute } from "vue-router";
+import SocialLayout from "./components/SocialLayout.vue";
 
+const route = useRoute();
 </script>
 
 <template>
-  <router-view />
+  <SocialLayout v-if="route.meta.social">
+    <RouterView />
+  </SocialLayout>
+  <RouterView v-else />
 </template>

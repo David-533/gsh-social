@@ -1,33 +1,38 @@
 <template>
-  <div class="modifier-page">
-    <h1>Modifier le profil</h1>
+  <main class="social-page edit-page">
+    <header class="page-heading">
+      <div><p class="page-eyebrow">TON ESPACE</p><h1>Modifier le profil</h1><p class="page-description">Mets à jour les informations visibles par ta communauté.</p></div>
+      <RouterLink class="edit-back-link" to="/profil">Retour au profil</RouterLink>
+    </header>
 
-    <!-- Photo de profil -->
-    <img :src="userPhoto || defaultPhoto" @click="triggerFileInput" alt="" />
-    <input type="file" ref="fileInput" accept="image/*" @change="handleFileChange" style="display:none" />
+    <form class="edit-form" @submit.prevent="saveProfile">
+      <section class="edit-section">
+        <div class="edit-section-heading"><h2>Photo de profil</h2><p>Une image carrée fonctionne le mieux.</p></div>
+        <div class="avatar-editor">
+          <img :src="userPhoto || defaultPhoto" :alt="`Aperçu de la photo de ${userPseudo || 'profil'}`" />
+          <div>
+            <label class="photo-select" for="profile-photo">Choisir une photo</label>
+            <input id="profile-photo" ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" @change="handleFileChange" />
+            <p>JPG, PNG ou WebP · 5 Mo maximum · enregistrée jusqu’à 512 px</p>
+          </div>
+        </div>
+      </section>
 
-    <!-- Pseudo -->
-    <label>Pseudo</label>
-    <input type="text" v-model="userPseudo" placeholder="Entrez votre pseudo" />
+      <section class="edit-section">
+        <div class="edit-section-heading"><h2>Informations</h2><p>Choisis comment tu apparais dans le fil.</p></div>
+        <div class="edit-fields">
+          <label class="edit-field" for="profile-pseudo"><span>Pseudo</span><input id="profile-pseudo" v-model.trim="userPseudo" type="text" minlength="3" maxlength="32" autocomplete="nickname" required /></label>
+          <label class="edit-field" for="profile-bio"><span>Bio</span><textarea id="profile-bio" v-model="userBio" maxlength="160" rows="4" placeholder="Quelques mots pour te présenter…"></textarea><small>{{ userBio.length }}/160</small></label>
+        </div>
+      </section>
 
-    <!-- Bio -->
-    <label>Bio</label>
-    <textarea v-model="userBio" placeholder="Entrez votre bio..."></textarea>
-
-    <!-- Genre -->
-    <label>Genre</label>
-    <select v-model="gender">
-      <option value="homme">Homme</option>
-      <option value="femme">Femme</option>
-      <option value="autre">Autre</option>
-    </select>
-
-    <!-- Boutons -->
-    <div class="btn-container">
-      <button class="save-btn" @click="saveProfile">Enregistrer</button>
-      <button class="back-btn" @click="goBack">Retour</button>
-    </div>
-  </div>
+      <p v-if="errorMessage" class="edit-error" role="alert">{{ errorMessage }}</p>
+      <footer class="edit-actions">
+        <RouterLink class="cancel-edit" to="/profil">Annuler</RouterLink>
+        <button class="save-profile" type="submit" :disabled="isSaving">{{ isSaving ? "Enregistrement…" : "Enregistrer les modifications" }}</button>
+      </footer>
+    </form>
+  </main>
 </template>
 
 <script>
@@ -40,108 +45,87 @@
  */
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import { DEFAULT_PROFILE_PHOTO, useUserStore } from "../stores/userStore";
+import { updateUserProfile, uploadProfilePhoto } from "../services/socialService";
 
 export default {
   name: "ModifierProfil",
   setup() {
     const router = useRouter();
+    const userStore = useUserStore();
 
     const userPseudo = ref("");
     const userPhoto = ref(null);
     const userBio = ref("");
-    const gender = ref("");
     const fileInput = ref(null);
-    const defaultPhoto = "https://via.placeholder.com/150";
+    const defaultPhoto = DEFAULT_PROFILE_PHOTO;
+    const errorMessage = ref("");
+    const isSaving = ref(false);
 
     /**
      * Charge les données du profil depuis localStorage au montage du composant
      */
     onMounted(() => {
-      userPseudo.value = localStorage.getItem("userPseudo") || "";
-      userPhoto.value = localStorage.getItem("userPhoto") || defaultPhoto;
-      userBio.value = localStorage.getItem("userBio") || "";
-      gender.value = localStorage.getItem("userGender") || "";
+      const profile = userStore.getProfile();
+      userPseudo.value = profile.pseudo || "";
+      userPhoto.value = profile.photo || defaultPhoto;
+      userBio.value = profile.bio || "";
     });
 
-    /**
-     * Déclenche l'input file caché pour le changement de photo de profil
-     */
-    const triggerFileInput = () => fileInput.value.click();
-
-    /**
-     * Gère le changement de photo de profil
-     * Rédimensionne l'image proportionnellement si elle dépasse 1024px
-     * Comprime en JPEG 80% de qualité
-     * @param {Event} e - L'événement du changement de fichier
-     */
     const handleFileChange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      errorMessage.value = "";
+
+      if (!file.type.startsWith("image/")) {
+        errorMessage.value = "Choisis un fichier image valide.";
+        e.target.value = "";
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        errorMessage.value = "La photo doit faire 5 Mo maximum.";
+        e.target.value = "";
+        return;
+      }
 
       const reader = new FileReader();
-
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const maxSize = 1024; // Taille maximale en pixels
-
-          let width = img.width;
-          let height = img.height;
-
-          // Redimensionne proportionnellement si l'image dépasse la taille max
-          if (width > height) {
-            if (width > maxSize) {
-              height *= maxSize / width;
-              width = maxSize;
-            }
-          } else {
-            if (height > maxSize) {
-              width *= maxSize / height;
-              height = maxSize;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Convertit en Base64 compressé (JPEG 80% de qualité)
-          userPhoto.value = canvas.toDataURL("image/jpeg", 0.8);
-        };
-
-        img.src = event.target.result;
-      };
+      reader.onload = event => { userPhoto.value = event.target.result; };
+      reader.onerror = () => { errorMessage.value = "La lecture de cette photo a échoué."; };
 
       reader.readAsDataURL(file);
     };
 
-    /**
-     * Sauvegarde les modifications du profil dans localStorage
-     * Redirige ensuite vers la page de profil
-     */
-    const saveProfile = () => {
-      localStorage.setItem("userPseudo", userPseudo.value);
-      localStorage.setItem("userPhoto", userPhoto.value || defaultPhoto);
-      localStorage.setItem("userBio", userBio.value);
-      localStorage.setItem("userGender", gender.value);
-      router.push("/profil");
-    };
-
-    /**
-     * Redirige vers la page de profil sans sauvegarder les modifications
-     */
-    const goBack = () => {
-      router.push("/profil");
+    const saveProfile = async () => {
+      if (userPseudo.value.trim().length < 3) {
+        errorMessage.value = "Le pseudo doit contenir au moins 3 caractères.";
+        return;
+      }
+      isSaving.value = true;
+      errorMessage.value = "";
+      try {
+        const photo = userPhoto.value?.startsWith("data:")
+          ? await uploadProfilePhoto(userStore.user.uid, userPhoto.value)
+          : userPhoto.value || defaultPhoto;
+        const changes = { pseudo: userPseudo.value.trim(), photo, bio: userBio.value.trim() };
+        await updateUserProfile(userStore.user.uid, changes);
+        userStore.updateProfile(changes);
+        await router.push("/profil");
+      } catch (error) {
+        errorMessage.value = error.message === "image-too-large"
+          ? "Cette image est trop détaillée pour être enregistrée. Choisis une autre photo."
+          : error.code === "permission-denied"
+          ? "Vérifie les règles Firestore de ton projet Firebase."
+          : error.message?.includes("pseudo")
+            ? error.message
+            : "Impossible d’enregistrer le profil. Vérifie Firestore et Cloudinary.";
+      } finally {
+        isSaving.value = false;
+      }
     };
 
     return {
-      userPseudo, userPhoto, userBio, gender,
-      defaultPhoto, fileInput,
-      triggerFileInput, handleFileChange,
-      saveProfile, goBack
+      userPseudo, userPhoto, userBio, defaultPhoto, fileInput, errorMessage, isSaving,
+      handleFileChange, saveProfile
     };
   }
 };
@@ -149,111 +133,41 @@ export default {
 
 
 <style scoped>
-.modifier-page {
-  max-width: 500px;
-  margin: 50px auto;
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  font-family: 'Roboto', sans-serif;
-}
+.edit-page { width: min(100%, 760px); margin: 0 auto; color: #23332d; }
+.edit-page .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 15px; margin-bottom: 22px; }
+.edit-page .page-eyebrow { margin: 0 0 6px; color: #66836f; font-size: 9px; font-weight: 700; }
+.edit-page .page-heading h1 { margin: 0; color: #19382f; font: 600 27px 'Space Grotesk', sans-serif; }
+.edit-page .page-description { margin: 6px 0 0; color: #78857d; font-size: 12px; }
+.edit-back-link { color: #4c6852; font-size: 11px; font-weight: 600; text-decoration: none; }
+.edit-form { overflow: hidden; border: 1px solid #e1e8e0; border-radius: 7px; background: #fff; }
+.edit-section { padding: 22px 24px; border-bottom: 1px solid #edf0ec; }
+.edit-section-heading h2 { margin: 0; color: #2a4033; font: 600 14px 'Space Grotesk', sans-serif; }
+.edit-section-heading p { margin: 5px 0 0; color: #849087; font-size: 10px; }
+.avatar-editor { display: flex; align-items: center; gap: 16px; margin-top: 20px; }
+.avatar-editor > img { width: 76px; height: 76px; flex: 0 0 76px; border: 1px solid #e3e9e1; border-radius: 50%; object-fit: cover; }
+.avatar-editor > div { display: grid; justify-items: start; gap: 7px; }
+.photo-select { display: inline-flex; min-height: 34px; align-items: center; padding: 0 11px; border: 1px solid #dfe6dc; border-radius: 5px; color: #405c47; background: #fff; font-size: 10px; font-weight: 700; cursor: pointer; }
+.avatar-editor input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.avatar-editor p { margin: 0; color: #87918a; font-size: 9px; }
+.edit-fields { display: grid; max-width: 520px; gap: 17px; margin-top: 20px; }
+.edit-field { display: grid; gap: 7px; color: #34473b; font-size: 11px; font-weight: 700; }
+.edit-field input, .edit-field textarea { width: 100%; padding: 10px 11px; border: 1px solid #dfe6dc; border-radius: 5px; outline: none; color: #263b30; background: #fcfdfb; font: 12px 'DM Sans', sans-serif; box-sizing: border-box; }
+.edit-field input { height: 40px; }
+.edit-field textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
+.edit-field input:focus, .edit-field textarea:focus { border-color: #86a878; box-shadow: 0 0 0 3px rgba(112,151,91,.12); }
+.edit-field small { justify-self: end; color: #87918a; font-size: 9px; font-weight: 400; }
+.edit-error { margin: 0; padding: 0 24px 12px; color: #a9463b; font-size: 11px; }
+.edit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 15px 24px; background: #fcfdfb; }
+.cancel-edit, .save-profile { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid #dfe6dc; border-radius: 5px; color: #526158; background: #fff; font: 600 10px 'DM Sans', sans-serif; text-decoration: none; cursor: pointer; }
+.save-profile { border-color: #c9ef74; color: #19382f; background: #c9ef74; }
 
-h1 {
-  text-align: center;
-  font-size: 1.8rem;
-  color: #333;
-  margin-bottom: 20px;
-}
-
-img {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin: 0 auto;
-  border: 2px solid #000;
-  cursor: pointer;
-}
-
-label {
-  font-weight: bold;
-  color: #555;
-}
-
-input[type="text"],
-textarea,
-select {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 1rem;
-  resize: none;
-  font-family: 'Roboto', sans-serif;
-  box-sizing: border-box;
-}
-
-textarea {
-  min-height: 60px;
-  max-height: 120px;
-}
-
-.btn-container {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-}
-
-.save-btn {
-  flex: 1;
-  background-color: #0095f6;
-  color: white;
-  border: none;
-  padding: 10px 0;
-  border-radius: 6px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.save-btn:hover {
-  background-color: #007ac1;
-}
-
-.back-btn {
-  flex: 1;
-  background-color: #eee;
-  color: #333;
-  border: none;
-  padding: 10px 0;
-  border-radius: 6px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.back-btn:hover {
-  background-color: #ddd;
-}
-
-/* Responsive */
-@media screen and (max-width: 600px) {
-  .modifier-page {
-    margin: 20px;
-    padding: 15px;
-  }
-
-  img {
-    width: 100px;
-    height: 100px;
-  }
-
-  .btn-container {
-    flex-direction: column;
-  }
+@media (max-width: 600px) {
+  .edit-page .page-heading { align-items: flex-start; }
+  .edit-page .page-heading h1 { font-size: 23px; }
+  .edit-back-link { padding-top: 5px; white-space: nowrap; }
+  .edit-section { padding: 18px 15px; }
+  .edit-actions { padding: 12px 15px; }
+  .edit-error { padding: 0 15px 10px; }
+  .save-profile { flex: 1; }
 }
 </style>
