@@ -6,6 +6,7 @@ import Home from '../Views/Home.vue';
 import Profil from '../Views/Profil.vue';
 import Messages from '../Views/Messages.vue';
 import Search from '../Views/Search.vue';
+import Settings from '../Views/Settings.vue';
 import ModifierProfil from '../Views/ModifierProfil.vue';
 import { useUserStore } from "../stores/userStore";
 import { auth } from "../firebase";
@@ -23,6 +24,7 @@ const routes = [
   { path: '/profil/:memberId', name: 'MemberProfile', component: Profil, meta: { social: true } },
   { path: '/messages', name: 'Messages', component: Messages, meta: { social: true } },
   { path: '/recherche', name: 'Recherche', component: Search, meta: { social: true } },
+  { path: '/parametres', name: 'Parametres', component: Settings, meta: { social: true } },
   { path: '/modifier-profil', name: 'ModifierProfil', component: ModifierProfil, meta: { social: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' }               // Redirige vers la page de connexion si la route n'existe pas
 ];

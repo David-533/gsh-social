@@ -526,19 +526,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-height: 740px) and (max-width: 700px) {
-  .auth-main { padding: 14px 18px 18px; }
-  .mobile-brand { margin-bottom: 18px; }
-  .form-heading { margin-bottom: 14px; }
-  .form-heading h2 { font-size: 30px; }
-  .form-subtitle { margin-top: 6px; }
-  .auth-form { gap: 10px; }
-  .field-group, .field-group label { gap: 6px; }
-  .field-group input { height: 40px; }
-  .submit-button { height: 44px; }
-  .separator { margin: 11px 0 8px; }
-  .google-button { min-height: 40px; }
-  .switch-mode { margin-top: 12px; }
-  .legal-note { margin-top: 14px; }
+  .auth-main { padding: 10px 16px 12px; }
+  .mobile-brand { margin-bottom: 10px; }
+  .form-heading { margin-bottom: 10px; }
+  .form-heading h2 { font-size: 28px; }
+  .form-subtitle { margin-top: 4px; }
+  .auth-form { gap: 7px; }
+  .field-group, .field-group label { gap: 4px; }
+  .field-group input { height: 36px; }
+  .submit-button { height: 40px; }
+  .separator { margin: 8px 0 6px; }
+  .google-button { min-height: 36px; }
+  .switch-mode { margin-top: 8px; }
+  .legal-note { margin-top: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -12,6 +12,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "../firebase";
@@ -51,6 +52,7 @@ export const ensureUserProfile = async (firebaseUser, requestedPseudo = "") => {
     email: firebaseUser.email || "",
     photo: firebaseUser.photoURL || "",
     bio: "",
+    profilePublic: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -123,6 +125,11 @@ export const subscribeUserProfile = (uid, callback, onError) => onSnapshot(
   snapshot => callback(snapshot.exists() ? { id: snapshot.id, uid: snapshot.id, ...snapshot.data() } : null),
   onError,
 );
+
+export const updateProfileVisibility = (uid, profilePublic) => updateDoc(userReference(uid), {
+  profilePublic,
+  updatedAt: serverTimestamp(),
+});
 
 export const resolveLoginEmail = async identifier => {
   const normalized = identifier.trim().toLocaleLowerCase("fr-FR");

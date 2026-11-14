@@ -16,6 +16,7 @@ const links = [
   { to: "/recherche", label: "Recherche", icon: "search" },
   { to: "/profil", label: "Profil", icon: "profile" },
   { to: "/messages", label: "Messages", icon: "messages" },
+  { to: "/parametres", label: "Paramètres", icon: "settings" },
 ];
 
 const isActive = path => route.path === path || (path === "/profil" && route.path === "/modifier-profil");
@@ -48,6 +49,7 @@ const logout = async () => {
           <svg v-if="link.icon === 'home'" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg>
           <svg v-else-if="link.icon === 'profile'" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" /></svg>
           <svg v-else-if="link.icon === 'messages'" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5" /></svg>
+          <svg v-else-if="link.icon === 'settings'" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="2"/></svg>
           <svg v-else viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5" /></svg>
           <span>{{ link.label }}</span>
         </RouterLink>
@@ -99,6 +101,7 @@ const logout = async () => {
         <svg v-if="link.icon === 'home'" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg>
         <svg v-else-if="link.icon === 'profile'" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" /></svg>
         <svg v-else-if="link.icon === 'messages'" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5" /></svg>
+        <svg v-else-if="link.icon === 'settings'" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="2"/></svg>
         <svg v-else viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5" /></svg>
         <span>{{ link.label }}</span>
       </RouterLink>
@@ -162,7 +165,7 @@ const logout = async () => {
   .mobile-header .brand-symbol { width: 30px; height: 30px; font-size: 21px; }
   .mobile-account { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
   .social-workspace { min-height: 100svh; margin: 0; padding: 78px 14px 92px; }
-  .mobile-nav { position: fixed; inset: auto 0 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); min-height: 66px; padding: 6px 12px max(6px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(255,255,255,.97); }
+  .mobile-nav { position: fixed; inset: auto 0 0; z-index: 30; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 66px; padding: 6px 4px max(6px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(255,255,255,.97); }
   .mobile-nav-link { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #738078; font-size: 10px; font-weight: 600; text-decoration: none; }
   .mobile-nav-link--active { color: var(--ink); }
   .mobile-nav-link--active svg { color: #5b7d44; }

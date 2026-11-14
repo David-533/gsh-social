@@ -7,7 +7,6 @@
         <div class="profile-identity">
           <p class="page-eyebrow">{{ isOwnProfile ? "MON PROFIL" : "PROFIL COMMUNAUTAIRE" }}</p>
           <h1>{{ profile.pseudo }}</h1>
-          <p v-if="isOwnProfile" class="profile-email">{{ profile.email || userStore.user?.email }}</p>
           <p class="profile-bio">{{ profile.bio || "Ajoute une bio pour te présenter à ta communauté." }}</p>
           <div class="profile-social-stats">
             <span><strong>{{ mediaItems.length }}</strong> publications</span>
@@ -34,8 +33,8 @@
 
       <div v-else-if="!mediaItems.length" class="profile-empty">
         <span class="empty-mark" aria-hidden="true">▧</span>
-        <h3>{{ !isOwnProfile && !following ? "Publications réservées aux abonnés" : "Aucune publication pour le moment" }}</h3>
-        <p>{{ !isOwnProfile && !following ? `Suis ${profile.pseudo} pour voir ses publications.` : isOwnProfile ? "Ajoute ici tes photos et vidéos préférées." : "Ce membre n’a pas encore publié de photo ou de vidéo." }}</p>
+        <h3>{{ !isOwnProfile && profile.profilePublic === false && !following ? "Profil privé" : "Aucune publication pour le moment" }}</h3>
+        <p>{{ !isOwnProfile && profile.profilePublic === false && !following ? "Suis ce membre pour voir ses publications." : isOwnProfile ? "Ajoute ici tes photos et vidéos préférées." : "Ce membre n’a pas encore publié de photo ou de vidéo." }}</p>
       </div>
 
       <div v-else class="profile-media-grid">
@@ -108,6 +107,7 @@
 import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { DEFAULT_PROFILE_PHOTO, useUserStore } from "../stores/userStore";
+import { canViewProfilePosts } from "../utils/profileVisibility";
 import {
   addPostComment,
   createPost,
@@ -163,7 +163,7 @@ function handleCloudError(error) {
   mediaError.value = error.message === "cloudinary-not-configured"
     ? "Les vidéos demandent Cloudinary (voir .env.local). Les photos fonctionnent sans."
     : error.code === "permission-denied"
-    ? "Déploie les règles Firebase pour autoriser cette action."
+    ? "Accès refusé par Firestore. Vérifie ta connexion et les règles de sécurité."
     : "Les données du profil n’ont pas pu être chargées. Vérifie la configuration Firebase.";
 }
 
@@ -184,17 +184,33 @@ watch(displayedAccountId, (uid, previousUid, onCleanup) => {
   mediaItems.value = [];
   mediaLoading.value = true;
   mediaError.value = "";
+  following.value = false;
+  let profileReady = false;
+  let followReady = uid === currentUid;
 
   profileUnsubscribe = subscribeUserProfile(uid, result => {
-    if (result) profile.value = result;
-    else mediaError.value = "Ce profil est introuvable.";
-  }, handleCloudError);
+    if (result) {
+      profile.value = result;
+      profileReady = true;
+      loadPosts();
+    } else {
+      mediaError.value = "Ce profil est introuvable.";
+      mediaLoading.value = false;
+    }
+  }, error => {
+    mediaLoading.value = false;
+    handleCloudError(error);
+  });
 
   const loadPosts = () => {
+    if (!profileReady || !followReady) return;
     postsUnsubscribe?.();
     postsUnsubscribe = null;
     mediaItems.value = [];
-    if (!isOwnProfile.value && !following.value) {
+    if (!canViewProfilePosts({ isOwnProfile: uid === currentUid, profilePublic: profile.value.profilePublic, following: following.value })) {
+      selectedMedia.value = null;
+      selectedLikesUnsubscribe?.();
+      selectedCommentsUnsubscribe?.();
       mediaLoading.value = false;
       return;
     }
@@ -203,6 +219,7 @@ watch(displayedAccountId, (uid, previousUid, onCleanup) => {
       mediaItems.value = posts.filter(post => post.mediaUrl && post.surface !== "feed").map(post => ({
         ...post,
         type: post.mediaType || "image",
+        viewCount: mediaItems.value.find(item => item.id === post.id)?.viewCount || 0,
         likeCount: 0,
         liked: false,
         comments: [],
@@ -235,11 +252,14 @@ watch(displayedAccountId, (uid, previousUid, onCleanup) => {
   if (!isOwnProfile.value) {
     followUnsubscribe = subscribeFollowState(currentUid, uid, value => {
       following.value = value;
+      followReady = true;
       loadPosts();
-    }, handleCloudError);
+    }, error => {
+      mediaLoading.value = false;
+      handleCloudError(error);
+    });
   } else {
-    following.value = false;
-    loadPosts();
+    followReady = true;
   }
 
   onCleanup(() => {
@@ -358,7 +378,6 @@ const removeMedia = async item => {
 .profile-identity { min-width: 0; flex: 1; padding-top: 12px; }
 .profile-identity .page-eyebrow, .profile-section-heading .page-eyebrow { margin: 0 0 5px; color: #69836f; font-size: 9px; font-weight: 700; }
 .profile-identity h1 { margin: 0; color: #19382f; font: 600 23px/1.2 'Space Grotesk', sans-serif; overflow-wrap: anywhere; }
-.profile-email { margin: 4px 0 0; color: #87918a; font-size: 11px; }
 .profile-bio { margin: 12px 0 0; color: #526158; font-size: 12px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
 .profile-social-stats { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; color: #78857d; font-size: 10px; }
 .profile-social-stats strong { margin-right: 3px; color: #2f4538; font-size: 12px; }
@@ -413,14 +432,14 @@ const removeMedia = async item => {
 .media-viewer-close { position: absolute; top: 10px; right: 10px; z-index: 2; width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.5); border-radius: 50%; color: #fff; background: rgba(17,29,23,.65); font-size: 22px; cursor: pointer; }
 .community-section { margin-top: 28px; }
 .community-list { display: grid; max-width: 680px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.community-member { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid #e4e9e3; border-radius: 5px; background: #fff; }
-.community-member > img { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; object-fit: cover; }
+.community-member { display: flex; min-width: 0; flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; border: 1px solid #e4e9e3; border-radius: 5px; background: #fff; }
+.community-member-profile img { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 50%; object-fit: cover; }
 .community-member-profile { display: flex; min-width: 0; flex: 1; align-items: center; gap: 9px; color: inherit; text-decoration: none; }
 .community-member-profile:hover strong { text-decoration: underline; }
 .community-member-profile > div { display: grid; min-width: 0; flex: 1; gap: 4px; }
 .community-member strong { overflow: hidden; color: #2f4538; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .community-member span { overflow: hidden; color: #849087; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.community-member button { min-width: 69px; min-height: 30px; padding: 0 8px; border: 0; border-radius: 4px; color: #19382f; background: #c9ef74; font-size: 9px; font-weight: 700; cursor: pointer; }
+.community-member button { width: 100%; min-height: 34px; padding: 0 8px; border: 0; border-radius: 4px; color: #19382f; background: #c9ef74; font-size: 10px; font-weight: 700; cursor: pointer; }
 .community-member button.following { border: 1px solid #dfe6dc; color: #526158; background: #fff; }
 
 @media (max-width: 700px) {

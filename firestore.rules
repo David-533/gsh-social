@@ -16,14 +16,20 @@ service cloud.firestore {
 
     function canReadPost(postId) {
       let post = get(/databases/$(database)/documents/posts/$(postId)).data;
-      return signedIn() && (post.surface == 'feed' || authorOrFollower(post.authorId));
+      return canReadPostData(post);
+    }
+
+    function canReadPostData(post) {
+      return signedIn() && (post.get('surface', 'profile') == 'feed'
+        || authorOrFollower(post.authorId)
+        || get(/databases/$(database)/documents/users/$(post.authorId)).data.get('profilePublic', true) == true);
     }
 
     match /users/{uid} {
       allow read: if signedIn();
       allow create, update: if owns(uid)
         && request.resource.data.keys().hasOnly([
-          'pseudo', 'usernameLower', 'email', 'photo', 'bio', 'createdAt', 'updatedAt'
+          'pseudo', 'usernameLower', 'email', 'photo', 'bio', 'profilePublic', 'createdAt', 'updatedAt'
         ])
         && request.resource.data.pseudo is string
         && request.resource.data.pseudo.size() >= 3
@@ -31,6 +37,7 @@ service cloud.firestore {
         && request.resource.data.usernameLower is string
         && request.resource.data.photo is string
         && request.resource.data.photo.size() <= 300000
+        && request.resource.data.get('profilePublic', true) is bool
         && request.resource.data.email == request.auth.token.email;
       allow delete: if owns(uid);
 
@@ -57,7 +64,7 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if signedIn() && (resource.data.surface == 'feed' || authorOrFollower(resource.data.authorId));
+      allow read: if canReadPostData(resource.data);
       allow create: if signedIn()
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.authorName is string
