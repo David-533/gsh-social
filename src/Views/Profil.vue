@@ -18,6 +18,7 @@
         <button v-else class="add-media-action" type="button" :class="{ following: isFollowing(displayedAccountId) }" @click="toggleFollow(displayedAccountId)">
           {{ isFollowing(displayedAccountId) ? "Abonné" : "Suivre" }}
         </button>
+        <RouterLink v-if="!isOwnProfile" class="edit-profile-action" :to="{ path: '/messages', query: { to: displayedAccountId } }">Message</RouterLink>
       </section>
     </header>
 

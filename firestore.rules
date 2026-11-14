@@ -25,6 +25,16 @@ service cloud.firestore {
         || get(/databases/$(database)/documents/users/$(post.authorId)).data.get('profilePublic', true) == true);
     }
 
+    function notBlocked(firstUid, secondUid) {
+      return !exists(/databases/$(database)/documents/users/$(firstUid)/blocked/$(secondUid))
+        && !exists(/databases/$(database)/documents/users/$(secondUid)/blocked/$(firstUid));
+    }
+
+    function mutuallyFollowing(firstUid, secondUid) {
+      return exists(/databases/$(database)/documents/users/$(firstUid)/following/$(secondUid))
+        && exists(/databases/$(database)/documents/users/$(secondUid)/following/$(firstUid));
+    }
+
     match /users/{uid} {
       allow read: if signedIn();
       allow create, update: if owns(uid)
@@ -53,6 +63,62 @@ service cloud.firestore {
         allow create: if signedIn() && followerUid == request.auth.uid
           && request.resource.data.uid == followerUid;
         allow delete: if signedIn() && followerUid == request.auth.uid;
+      }
+
+      match /blocked/{blockedUid} {
+        allow read: if owns(uid);
+        allow create: if owns(uid) && uid != blockedUid
+          && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+          && request.resource.data.uid == blockedUid
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if owns(uid);
+      }
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.participants;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['senderId', 'recipientId', 'participants', 'status', 'initialText', 'createdAt', 'updatedAt'])
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.recipientId is string
+        && request.resource.data.recipientId != request.auth.uid
+        && conversationId == request.auth.uid + '_' + request.resource.data.recipientId
+        && request.resource.data.participants == [request.auth.uid, request.resource.data.recipientId]
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.recipientId))
+        && notBlocked(request.auth.uid, request.resource.data.recipientId)
+        && request.resource.data.initialText is string
+        && request.resource.data.initialText.size() > 0
+        && request.resource.data.initialText.size() <= 2000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && (request.resource.data.status == 'pending'
+          || (request.resource.data.status == 'accepted'
+            && mutuallyFollowing(request.auth.uid, request.resource.data.recipientId)));
+      allow update: if signedIn()
+        && request.auth.uid == resource.data.recipientId
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.status in ['accepted', 'declined']
+        && request.resource.data.updatedAt == request.time
+        && notBlocked(resource.data.senderId, resource.data.recipientId);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['senderId', 'text', 'createdAt'])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants
+          && get(/databases/$(database)/documents/conversations/$(conversationId)).data.status == 'accepted'
+          && notBlocked(get(/databases/$(database)/documents/conversations/$(conversationId)).data.senderId,
+                        get(/databases/$(database)/documents/conversations/$(conversationId)).data.recipientId);
+        allow update, delete: if false;
       }
     }
 

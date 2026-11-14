@@ -11,3 +11,8 @@ const route = useRoute();
   </SocialLayout>
   <RouterView v-else />
 </template>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+</style>
